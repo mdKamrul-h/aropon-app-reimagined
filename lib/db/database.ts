@@ -104,6 +104,7 @@ async function migrate(database: SQLite.SQLiteDatabase) {
       business_id TEXT NOT NULL,
       lender_name TEXT NOT NULL,
       loan_type TEXT NOT NULL,
+      lender_type TEXT NOT NULL DEFAULT 'personal',
       principal REAL NOT NULL,
       outstanding REAL NOT NULL,
       total_installments INTEGER NOT NULL,
@@ -144,11 +145,58 @@ async function migrate(database: SQLite.SQLiteDatabase) {
       due_date TEXT NOT NULL,
       paid_at TEXT,
       is_paid INTEGER NOT NULL DEFAULT 0,
+      paid_amount REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       deleted_at TEXT,
       sync_status TEXT NOT NULL DEFAULT 'pending'
     );
+
+    CREATE TABLE IF NOT EXISTS loan_payments (
+      id TEXT PRIMARY KEY,
+      loan_id TEXT NOT NULL,
+      installment_id TEXT,
+      amount REAL NOT NULL,
+      due_date TEXT NOT NULL,
+      paid_on TEXT NOT NULL,
+      days_late INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+    );
+
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id TEXT PRIMARY KEY,
+      business_id TEXT,
+      name_bn TEXT NOT NULL,
+      name_en TEXT NOT NULL,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+    );
+
+    CREATE TABLE IF NOT EXISTS credit_scores (
+      id TEXT PRIMARY KEY,
+      business_id TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      band TEXT NOT NULL,
+      confidence TEXT NOT NULL DEFAULT 'preliminary',
+      dscr REAL,
+      drivers TEXT NOT NULL DEFAULT '[]',
+      computed_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_loan_payments_loan ON loan_payments(loan_id);
+    CREATE INDEX IF NOT EXISTS idx_expense_categories_business ON expense_categories(business_id);
+    CREATE INDEX IF NOT EXISTS idx_credit_scores_business ON credit_scores(business_id);
 
     CREATE TABLE IF NOT EXISTS learning_items (
       id TEXT PRIMARY KEY,
@@ -169,11 +217,33 @@ async function migrate(database: SQLite.SQLiteDatabase) {
     CREATE INDEX IF NOT EXISTS idx_installments_updated ON installments(updated_at);
   `);
 
-  const profileCols = await database.getAllAsync<{ name: string }>(
-    'PRAGMA table_info(profiles)',
-  );
-  if (!profileCols.some((c) => c.name === 'username')) {
-    await database.execAsync('ALTER TABLE profiles ADD COLUMN username TEXT');
+  await addColumnIfMissing(database, 'profiles', 'username', 'TEXT');
+
+  await addColumnIfMissing(database, 'businesses', 'established_on', 'TEXT');
+  await addColumnIfMissing(database, 'businesses', 'trade_license_no', 'TEXT');
+  await addColumnIfMissing(database, 'businesses', 'nid_no', 'TEXT');
+
+  await addColumnIfMissing(database, 'transactions', 'expense_category_id', 'TEXT');
+
+  await addColumnIfMissing(database, 'loans', 'lender_type', "TEXT NOT NULL DEFAULT 'personal'");
+  await addColumnIfMissing(database, 'loans', 'interest_rate', 'REAL NOT NULL DEFAULT 0');
+  await addColumnIfMissing(database, 'loans', 'interest_type', "TEXT NOT NULL DEFAULT 'flat'");
+  await addColumnIfMissing(database, 'loans', 'disbursed_on', 'TEXT');
+  await addColumnIfMissing(database, 'loans', 'first_due_date', 'TEXT');
+  await addColumnIfMissing(database, 'loans', 'frequency', "TEXT NOT NULL DEFAULT 'monthly'");
+
+  await addColumnIfMissing(database, 'installments', 'paid_amount', 'REAL NOT NULL DEFAULT 0');
+}
+
+async function addColumnIfMissing(
+  database: SQLite.SQLiteDatabase,
+  table: string,
+  column: string,
+  ddl: string,
+) {
+  const cols = await database.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (!cols.some((c) => c.name === column)) {
+    await database.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
   }
 }
 

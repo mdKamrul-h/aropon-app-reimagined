@@ -839,16 +839,6 @@ export function CalculatorScreenContent() {
   );
 }
 
-interface CalculatorOverlayProps {
-  visible: boolean;
-  onClose: () => void;
-  onNavigateAway?: () => void;
-}
-
-export function CalculatorOverlay(_props: CalculatorOverlayProps) {
-  return null;
-}
-
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,

@@ -10,6 +10,9 @@ const SYNC_TABLES = [
   'transactions',
   'loans',
   'installments',
+  'loan_payments',
+  'expense_categories',
+  'credit_scores',
   'day_closes',
   'learning_items',
 ] as const;

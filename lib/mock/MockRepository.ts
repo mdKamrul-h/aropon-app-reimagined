@@ -121,6 +121,7 @@ const seedTransactions: Transaction[] = [
     note: 'বাকি বিক্রি',
     transaction_date: todayISO(),
     running_balance: 1250,
+    expense_category_id: null,
     ...base(),
   },
   {
@@ -134,6 +135,7 @@ const seedTransactions: Transaction[] = [
     note: 'দোকান ভাড়া',
     transaction_date: todayISO(),
     running_balance: null,
+    expense_category_id: null,
     ...base(),
   },
   {
@@ -147,6 +149,7 @@ const seedTransactions: Transaction[] = [
     note: 'টাকা আদায়',
     transaction_date: todayISO(),
     running_balance: -200,
+    expense_category_id: null,
     ...base(),
   },
 ];
@@ -157,12 +160,18 @@ const seedLoans: Loan[] = [
     business_id: MOCK_BUSINESS_ID,
     lender_name: 'ব্র্যাক ব্যাংক',
     loan_type: 'ব্যবসায়িক',
+    lender_type: 'bank',
     principal: 50000,
     outstanding: 35000,
     total_installments: 12,
     paid_installments: 5,
     next_due_date: todayISO(),
     status: 'active',
+    interest_rate: 12,
+    interest_type: 'flat',
+    disbursed_on: todayISO(),
+    first_due_date: todayISO(),
+    frequency: 'monthly',
     ...base(),
   },
 ];
@@ -319,6 +328,7 @@ export class MockRepository implements IDataRepository {
       note: input.note ?? null,
       transaction_date: input.transaction_date ?? todayISO(),
       running_balance: null,
+      expense_category_id: input.expense_category_id ?? null,
       ...base(),
     };
     this.transactions.unshift(tx);
@@ -363,12 +373,18 @@ export class MockRepository implements IDataRepository {
       business_id: businessId,
       lender_name: input.lender_name,
       loan_type: input.loan_type,
+      lender_type: input.lender_type ?? 'personal',
       principal: input.principal,
       outstanding: input.outstanding ?? input.principal,
       total_installments: input.total_installments,
       paid_installments: 0,
       next_due_date: input.next_due_date ?? todayISO(),
       status: 'active',
+      interest_rate: input.interest_rate ?? 0,
+      interest_type: input.interest_type ?? 'flat',
+      disbursed_on: input.disbursed_on ?? null,
+      first_due_date: input.first_due_date ?? null,
+      frequency: input.frequency ?? 'monthly',
       ...base(),
     };
     this.loans.push(loan);

@@ -113,8 +113,8 @@ export class LocalRepository implements IDataRepository {
     const biz = await this.fallback.createBusiness(ownerId, input);
     const db = await this.db();
     await db.runAsync(
-      `INSERT OR REPLACE INTO businesses (id, owner_id, name, owner_name, business_type, district, logo_url, reminder_sms_template, cash_in_hand, created_at, updated_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT OR REPLACE INTO businesses (id, owner_id, name, owner_name, business_type, district, logo_url, reminder_sms_template, cash_in_hand, established_on, trade_license_no, nid_no, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         biz.id,
         biz.owner_id,
@@ -125,6 +125,9 @@ export class LocalRepository implements IDataRepository {
         biz.logo_url,
         biz.reminder_sms_template,
         biz.cash_in_hand,
+        biz.established_on ?? null,
+        biz.trade_license_no ?? null,
+        biz.nid_no ?? null,
         biz.created_at,
         biz.updated_at,
       ],
@@ -139,7 +142,7 @@ export class LocalRepository implements IDataRepository {
     const biz = { ...existing, ...patch, updated_at: nowISO() };
     const db = await this.db();
     await db.runAsync(
-      `UPDATE businesses SET name=?, owner_name=?, district=?, logo_url=?, reminder_sms_template=?, cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
+      `UPDATE businesses SET name=?, owner_name=?, district=?, logo_url=?, reminder_sms_template=?, cash_in_hand=?, established_on=?, trade_license_no=?, nid_no=?, updated_at=?, sync_status='pending' WHERE id=?`,
       [
         biz.name,
         biz.owner_name,
@@ -147,6 +150,9 @@ export class LocalRepository implements IDataRepository {
         biz.logo_url,
         biz.reminder_sms_template,
         biz.cash_in_hand,
+        biz.established_on ?? null,
+        biz.trade_license_no ?? null,
+        biz.nid_no ?? null,
         nowISO(),
         id,
       ],
@@ -320,6 +326,7 @@ export class LocalRepository implements IDataRepository {
       note: input.note ?? null,
       transaction_date: input.transaction_date ?? todayISO(),
       running_balance: null,
+      expense_category_id: input.expense_category_id ?? null,
       created_at: ts,
       updated_at: ts,
       deleted_at: null,
@@ -345,8 +352,8 @@ export class LocalRepository implements IDataRepository {
     }
 
     await db.runAsync(
-      `INSERT OR REPLACE INTO transactions (id, business_id, party_id, type, amount, payment_method, is_credit, note, transaction_date, running_balance, created_at, updated_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT OR REPLACE INTO transactions (id, business_id, party_id, type, amount, payment_method, is_credit, note, transaction_date, running_balance, expense_category_id, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         tx.id,
         tx.business_id,
@@ -358,6 +365,7 @@ export class LocalRepository implements IDataRepository {
         tx.note,
         tx.transaction_date,
         tx.running_balance,
+        tx.expense_category_id,
         tx.created_at,
         tx.updated_at,
       ],
@@ -568,19 +576,25 @@ export class LocalRepository implements IDataRepository {
   private async persistLoan(loan: Loan) {
     const db = await this.db();
     await db.runAsync(
-      `INSERT OR REPLACE INTO loans (id, business_id, lender_name, loan_type, principal, outstanding, total_installments, paid_installments, next_due_date, status, created_at, updated_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT OR REPLACE INTO loans (id, business_id, lender_name, loan_type, lender_type, principal, outstanding, total_installments, paid_installments, next_due_date, status, interest_rate, interest_type, disbursed_on, first_due_date, frequency, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         loan.id,
         loan.business_id,
         loan.lender_name,
         loan.loan_type,
+        loan.lender_type ?? 'personal',
         loan.principal,
         loan.outstanding,
         loan.total_installments,
         loan.paid_installments,
         loan.next_due_date,
         loan.status,
+        loan.interest_rate ?? 0,
+        loan.interest_type ?? 'flat',
+        loan.disbursed_on ?? null,
+        loan.first_due_date ?? null,
+        loan.frequency ?? 'monthly',
         loan.created_at,
         loan.updated_at,
       ],
@@ -631,6 +645,9 @@ export class LocalRepository implements IDataRepository {
       logo_url: row.logo_url as string | null,
       reminder_sms_template: row.reminder_sms_template as string,
       cash_in_hand: row.cash_in_hand as number,
+      established_on: (row.established_on as string | null) ?? null,
+      trade_license_no: (row.trade_license_no as string | null) ?? null,
+      nid_no: (row.nid_no as string | null) ?? null,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,
@@ -683,6 +700,7 @@ export class LocalRepository implements IDataRepository {
       note: row.note as string | null,
       transaction_date: row.transaction_date as string,
       running_balance: row.running_balance as number | null,
+      expense_category_id: (row.expense_category_id as string | null) ?? null,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,
@@ -695,12 +713,18 @@ export class LocalRepository implements IDataRepository {
       business_id: row.business_id as string,
       lender_name: row.lender_name as string,
       loan_type: row.loan_type as string,
+      lender_type: (row.lender_type as Loan['lender_type']) ?? 'personal',
       principal: row.principal as number,
       outstanding: row.outstanding as number,
       total_installments: row.total_installments as number,
       paid_installments: row.paid_installments as number,
       next_due_date: row.next_due_date as string | null,
       status: row.status as Loan['status'],
+      interest_rate: (row.interest_rate as number) ?? 0,
+      interest_type: (row.interest_type as Loan['interest_type']) ?? 'flat',
+      disbursed_on: row.disbursed_on as string | null,
+      first_due_date: row.first_due_date as string | null,
+      frequency: (row.frequency as Loan['frequency']) ?? 'monthly',
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,

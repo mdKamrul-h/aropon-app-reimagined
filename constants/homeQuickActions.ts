@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
 import type { IconName } from '@/components/icons/AroponIcon';
+import { TRANSACTION_ACTIONS, isTabHref } from '@/constants/actions';
 
 export interface HomeQuickAction {
   label: string;
@@ -7,13 +8,15 @@ export interface HomeQuickAction {
   href: Href;
 }
 
-/** Main transaction shortcuts — 2×2 grid (aropon v2) */
-export const HOME_PRIMARY_ACTIONS: HomeQuickAction[] = [
-  { label: 'বিক্রি', icon: 'orders', href: '/transaction/sale' },
-  { label: 'ক্রয়', icon: 'grocery', href: '/transaction/purchase' },
-  { label: 'আদায়', icon: 'income', href: '/transaction/receive' },
-  { label: 'খরচ', icon: 'expense', href: '/transaction/expense' },
-];
+/** Main transaction shortcuts — 2×2 grid. Sourced from the canonical
+ * TRANSACTION_ACTIONS list so home and the FAB quick-add sheet always
+ * offer the same verbs routed to the same screens. */
+export const HOME_PRIMARY_ACTIONS: HomeQuickAction[] = ['sale', 'purchase', 'receive', 'expense'].map(
+  (key) => {
+    const a = TRANSACTION_ACTIONS.find((x) => x.key === key)!;
+    return { label: a.label, icon: a.icon, href: a.href };
+  },
+);
 
 /** Secondary shortcuts — compact row (aropon v2) */
 export const HOME_SERVICE_ACTIONS: HomeQuickAction[] = [
@@ -23,6 +26,4 @@ export const HOME_SERVICE_ACTIONS: HomeQuickAction[] = [
   { label: 'রিপোর্ট', icon: 'profit', href: '/reports' },
 ];
 
-export function isTabHref(href: Href): boolean {
-  return typeof href === 'string' && href.startsWith('/(tabs)/');
-}
+export { isTabHref };

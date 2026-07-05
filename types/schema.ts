@@ -12,6 +12,10 @@ export type TransactionType =
 export type PaymentMethod = 'cash' | 'bkash' | 'nagad' | 'rocket' | 'card';
 export type LoanStatus = 'active' | 'paid';
 export type LenderType = 'bank' | 'mfi' | 'personal';
+export type InterestType = 'flat' | 'reducing' | 'none';
+export type LoanFrequency = 'weekly' | 'monthly';
+export type CreditBand = 'poor' | 'fair' | 'good' | 'very_good' | 'excellent';
+export type ScoreConfidence = 'preliminary' | 'building' | 'verified';
 export type BusinessType =
   | 'grocery'
   | 'pharmacy'
@@ -37,6 +41,9 @@ export enum TableName {
   LineItems = 'line_items',
   Loans = 'loans',
   Installments = 'installments',
+  LoanPayments = 'loan_payments',
+  ExpenseCategories = 'expense_categories',
+  CreditScores = 'credit_scores',
   DayCloses = 'day_closes',
   LearningItems = 'learning_items',
 }
@@ -70,6 +77,9 @@ export interface Business extends BaseEntity {
   logo_url: string | null;
   reminder_sms_template: string;
   cash_in_hand: number;
+  established_on?: string | null;
+  trade_license_no?: string | null;
+  nid_no?: string | null;
 }
 
 export interface Party extends BaseEntity {
@@ -110,6 +120,15 @@ export interface Transaction extends BaseEntity {
   note: string | null;
   transaction_date: string;
   running_balance: number | null;
+  expense_category_id: string | null;
+}
+
+export interface ExpenseCategory extends BaseEntity {
+  business_id: string | null;
+  name_bn: string;
+  name_en: string;
+  is_system: boolean;
+  sort_order: number;
 }
 
 export interface LineItem extends BaseEntity {
@@ -132,6 +151,11 @@ export interface Loan extends BaseEntity {
   paid_installments: number;
   next_due_date: string | null;
   status: LoanStatus;
+  interest_rate?: number;
+  interest_type?: InterestType;
+  disbursed_on?: string | null;
+  first_due_date?: string | null;
+  frequency?: LoanFrequency;
 }
 
 export interface Installment extends BaseEntity {
@@ -140,6 +164,32 @@ export interface Installment extends BaseEntity {
   due_date: string;
   paid_at: string | null;
   is_paid: boolean;
+  paid_amount?: number;
+}
+
+export interface LoanPayment extends BaseEntity {
+  loan_id: string;
+  installment_id: string | null;
+  amount: number;
+  due_date: string;
+  paid_on: string;
+  days_late: number;
+}
+
+export interface CreditScoreDriver {
+  key: string;
+  label: string;
+  impact: number;
+}
+
+export interface CreditScoreSnapshot extends BaseEntity {
+  business_id: string;
+  score: number;
+  band: CreditBand;
+  confidence: ScoreConfidence;
+  dscr: number | null;
+  drivers: CreditScoreDriver[];
+  computed_at: string;
 }
 
 export interface DayClose extends BaseEntity {
@@ -174,6 +224,7 @@ export interface TransactionInput {
   is_credit?: boolean;
   note?: string | null;
   transaction_date?: string;
+  expense_category_id?: string | null;
   line_items?: Omit<LineItem, keyof BaseEntity | 'transaction_id'>[];
 }
 
@@ -203,6 +254,11 @@ export interface LoanInput {
   outstanding?: number;
   total_installments: number;
   next_due_date?: string | null;
+  interest_rate?: number;
+  interest_type?: InterestType;
+  disbursed_on?: string | null;
+  first_due_date?: string | null;
+  frequency?: LoanFrequency;
 }
 
 export interface DashboardSummary {

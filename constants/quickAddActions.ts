@@ -1,4 +1,5 @@
 import type { IconName } from '@/components/icons/AroponIcon';
+import { TRANSACTION_ACTIONS } from '@/constants/actions';
 
 export interface QuickAddAction {
   label: string;
@@ -6,11 +7,21 @@ export interface QuickAddAction {
   route: string;
 }
 
+const DESCRIPTIVE_LABELS: Record<string, string> = {
+  sale: 'নতুন বিক্রি',
+  purchase: 'নতুন ক্রয়',
+  receive: 'টাকা আদায়',
+  pay: 'টাকা দেওয়া',
+  expense: 'খরচ',
+};
+
+/** Sourced from the canonical TRANSACTION_ACTIONS list (same routes as the
+ * home quick actions), most-used verbs first, calculator last. */
 export const QUICK_ADD_ACTIONS: QuickAddAction[] = [
+  ...TRANSACTION_ACTIONS.map((a) => ({
+    label: DESCRIPTIVE_LABELS[a.key],
+    icon: a.icon,
+    route: a.href as string,
+  })),
   { label: 'ক্যালকুলেটর দিয়ে যোগ করুন', icon: 'flash', route: '/calculator' },
-  { label: 'নতুন বিক্রি', icon: 'orders', route: '/transaction/sale' },
-  { label: 'নতুন ক্রয়', icon: 'grocery', route: '/transaction/purchase' },
-  { label: 'টাকা আদায়', icon: 'income', route: '/transaction/receive' },
-  { label: 'টাকা দেওয়া', icon: 'expense', route: '/transaction/pay' },
-  { label: 'খরচ', icon: 'wallet', route: '/transaction/expense' },
 ];

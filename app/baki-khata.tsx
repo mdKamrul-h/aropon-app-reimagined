@@ -9,6 +9,7 @@ import { useRepository } from '@/context/RepositoryContext';
 import { useAppTheme } from '@/context/ThemeContext';
 import type { Party, PartyType, Transaction } from '@/types/schema';
 import { typography } from '@/constants/theme';
+import { partyTypeLabel } from '@/constants/partyLabels';
 import { toBnDigits } from '@/utils/bn-numerals';
 
 export default function BakiKhataScreen() {
@@ -89,7 +90,7 @@ export default function BakiKhataScreen() {
                     { color: segment === type ? colors.brand : colors.mutedDark },
                   ]}
                 >
-                  {type === 'customer' ? 'গ্রাহক' : 'ডিলার'}
+                  {partyTypeLabel(type)}
                 </Text>
               </Pressable>
             ))}

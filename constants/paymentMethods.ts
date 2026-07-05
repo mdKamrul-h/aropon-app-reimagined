@@ -14,6 +14,7 @@ export const PAYMENT_METHODS_UI: { key: PaymentMethod; label: string }[] = [
   { key: 'bkash', label: PAYMENT_METHOD_LABELS.bkash },
   { key: 'nagad', label: PAYMENT_METHOD_LABELS.nagad },
   { key: 'rocket', label: PAYMENT_METHOD_LABELS.rocket },
+  { key: 'card', label: PAYMENT_METHOD_LABELS.card },
 ];
 
 export function paymentMethodLabel(method: PaymentMethod | string | null | undefined): string {

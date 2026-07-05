@@ -8,6 +8,7 @@ import type {
   Installment,
   Language,
   LearningItem,
+  LineItem,
   Loan,
   LoanInput,
   LoanPayment,
@@ -43,6 +44,7 @@ export interface IDataRepository {
   getTransactions(businessId: string, partyId?: string): Promise<Transaction[]>;
   createTransaction(input: TransactionInput): Promise<Transaction>;
   deleteTransaction(id: string): Promise<void>;
+  getLineItems(businessId: string): Promise<LineItem[]>;
   getExpenseCategories(businessId: string): Promise<ExpenseCategory[]>;
   getLoans(businessId: string, status?: Loan['status']): Promise<Loan[]>;
   createLoan(businessId: string, input: LoanInput): Promise<Loan>;

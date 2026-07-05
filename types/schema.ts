@@ -287,4 +287,12 @@ export interface ReportSummary {
   expenseBreakdown: { label: string; amount: number; color: string }[];
   paymentBreakdown: { method: PaymentMethod; amount: number }[];
   topCustomers: { name: string; amount: number }[];
+  /** Cost-of-goods-sold gross margin, computed only from sales whose line
+   * items reference a product (so cost price is known). cogsSales is the
+   * revenue share this covers; grossMarginPercent is null when no
+   * line-itemed sales exist in the period, not a misleading 0/100. */
+  cogsSales: number;
+  cogs: number;
+  grossMarginPercent: number | null;
+  receivablesAging: { bucket: '০-৩০ দিন' | '৩১-৬০ দিন' | '৬০+ দিন'; amount: number; count: number }[];
 }

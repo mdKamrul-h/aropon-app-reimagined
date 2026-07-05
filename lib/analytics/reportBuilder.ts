@@ -1,6 +1,7 @@
 import type {
   DashboardSummary,
   ExpenseCategory,
+  LineItem,
   Loan,
   Party,
   PaymentMethod,
@@ -108,6 +109,8 @@ export function buildReport(
   businessId: string,
   rangeDays = 30,
   expenseCategories: ExpenseCategory[] = [],
+  lineItems: LineItem[] = [],
+  products: Product[] = [],
 ): ReportSummary {
   const cutoff = isoDateDaysAgo(rangeDays);
   const txs = transactions.filter(
@@ -178,6 +181,42 @@ export function buildReport(
     .slice(0, 5)
     .map((p) => ({ name: p.name, amount: p.balance }));
 
+  // COGS-based gross margin: only computable for sales whose line items
+  // reference a product with a known cost price. Sales rung up without a
+  // product selected (a plain quick sale) aren't included — cogsSales
+  // reports how much of total sales this actually covers, so the
+  // percentage isn't silently misleading.
+  const costById = new Map(products.map((p) => [p.id, p.cost_price]));
+  const saleTxIds = new Set(txs.filter((t) => t.type === 'sale').map((t) => t.id));
+  const costedLineItems = lineItems.filter(
+    (li) => saleTxIds.has(li.transaction_id) && li.product_id && costById.has(li.product_id),
+  );
+  const cogsSales = costedLineItems.reduce((s, li) => s + li.total, 0);
+  const cogs = costedLineItems.reduce(
+    (s, li) => s + (costById.get(li.product_id!) ?? 0) * li.qty,
+    0,
+  );
+  const grossMarginPercent = cogsSales > 0 ? Math.round(((cogsSales - cogs) / cogsSales) * 100) : null;
+
+  const today = new Date(`${todayISO()}T12:00:00`);
+  const daysSince = (iso: string | null) => {
+    if (!iso) return Infinity;
+    const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+    return Math.max(0, Math.round((today.getTime() - d.getTime()) / 86400000));
+  };
+  const receivableParties = bizParties.filter((p) => p.balance > 0);
+  const agingBuckets: ReportSummary['receivablesAging'] = [
+    { bucket: '০-৩০ দিন', amount: 0, count: 0 },
+    { bucket: '৩১-৬০ দিন', amount: 0, count: 0 },
+    { bucket: '৬০+ দিন', amount: 0, count: 0 },
+  ];
+  for (const p of receivableParties) {
+    const age = daysSince(p.last_activity_at);
+    const bucket = age <= 30 ? agingBuckets[0] : age <= 60 ? agingBuckets[1] : agingBuckets[2];
+    bucket.amount += p.balance;
+    bucket.count += 1;
+  }
+
   return {
     profit,
     sales,
@@ -190,6 +229,10 @@ export function buildReport(
     dailySales,
     expenseBreakdown,
     paymentBreakdown,
+    cogsSales,
+    cogs,
+    grossMarginPercent,
+    receivablesAging: agingBuckets,
     topCustomers,
   };
 }

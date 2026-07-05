@@ -99,6 +99,22 @@ async function migrate(database: SQLite.SQLiteDatabase) {
       sync_status TEXT NOT NULL DEFAULT 'pending'
     );
 
+    CREATE TABLE IF NOT EXISTS line_items (
+      id TEXT PRIMARY KEY,
+      transaction_id TEXT NOT NULL,
+      product_id TEXT,
+      name TEXT NOT NULL,
+      qty REAL NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_line_items_transaction ON line_items(transaction_id);
+
     CREATE TABLE IF NOT EXISTS loans (
       id TEXT PRIMARY KEY,
       business_id TEXT NOT NULL,

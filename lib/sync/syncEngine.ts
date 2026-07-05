@@ -8,6 +8,7 @@ const SYNC_TABLES = [
   'parties',
   'products',
   'transactions',
+  'line_items',
   'loans',
   'installments',
   'loan_payments',

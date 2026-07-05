@@ -3,7 +3,6 @@ import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from '
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import Svg, { Circle, G } from 'react-native-svg';
-import { PaywallModal } from '@/components/premium/PaywallModal';
 import { AnimatedSection } from '@/components/ui/AnimatedSection';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SurfaceCard } from '@/components/ui/SurfaceCard';
@@ -14,7 +13,6 @@ import { TakaAmount } from '@/components/ui/TakaAmount';
 import { AroponIcon } from '@/components/icons/AroponIcon';
 import { paymentMethodLabel } from '@/constants/paymentMethods';
 import { useAuth } from '@/context/AuthContext';
-import { usePremium } from '@/context/PremiumContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import { useRepository } from '@/context/RepositoryContext';
 import { PAYMENT_COLORS } from '@/lib/analytics/reportBuilder';
@@ -90,13 +88,10 @@ function KpiCard({
 export default function ReportsScreen() {
   const { business } = useAuth();
   const { repo } = useRepository();
-  const { isPremium } = usePremium();
   const { resolvedTheme: t } = useUiPreferences();
   const [report, setReport] = useState<ReportSummary | null>(null);
   const [range, setRange] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [paywallOpen, setPaywallOpen] = useState(false);
-  const [pendingExport, setPendingExport] = useState<'csv' | 'pdf' | null>(null);
 
   const load = useCallback(async () => {
     if (!business) return;
@@ -135,24 +130,15 @@ export default function ReportsScreen() {
       await Share.share({ message: csv, title: `${business.name}-report.csv` });
       return;
     }
-    const html = buildReportHtml(report, rangeLabel, business.name);
+    const html = buildReportHtml(report, rangeLabel, business);
     if (Platform.OS === 'web') {
       await Share.share({ message: html, title: `${business.name}-report.html` });
       return;
     }
     const { uri } = await Print.printToFileAsync({ html });
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'রিপোর্ট PDF' });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'ঋণের জন্য রিপোর্ট (PDF)' });
     }
-  };
-
-  const requestExport = (kind: 'csv' | 'pdf') => {
-    if (isPremium) {
-      void runExport(kind);
-      return;
-    }
-    setPendingExport(kind);
-    setPaywallOpen(true);
   };
 
   if (!business) return null;
@@ -200,17 +186,15 @@ export default function ReportsScreen() {
           <View style={styles.exportBar}>
             <Pressable
               style={[styles.exportBtn, { backgroundColor: t.card, borderColor: t.brand }]}
-              onPress={() => requestExport('csv')}
+              onPress={() => void runExport('csv')}
             >
               <Text style={[styles.exportBtnText, { color: t.brand }]}>Excel (CSV)</Text>
-              {!isPremium ? <Text style={styles.lock}>🔒</Text> : null}
             </Pressable>
             <Pressable
               style={[styles.exportBtn, { backgroundColor: t.card, borderColor: t.brand }]}
-              onPress={() => requestExport('pdf')}
+              onPress={() => void runExport('pdf')}
             >
-              <Text style={[styles.exportBtnText, { color: t.brand }]}>PDF</Text>
-              {!isPremium ? <Text style={styles.lock}>🔒</Text> : null}
+              <Text style={[styles.exportBtnText, { color: t.brand }]}>ঋণের জন্য PDF</Text>
             </Pressable>
           </View>
 
@@ -247,7 +231,28 @@ export default function ReportsScreen() {
           </View>
           </AnimatedSection>
 
-          <AnimatedSection index={2}>
+          {report.grossMarginPercent !== null ? (
+            <AnimatedSection index={2}>
+              <SectionHeader icon="profit" title="প্রকৃত গ্রস মার্জিন (পণ্য অনুযায়ী)" />
+              <SurfaceCard style={styles.marginCard}>
+                <View style={styles.marginRow}>
+                  <Text style={[styles.marginPct, { color: t.brand }]}>
+                    {toBnDigits(report.grossMarginPercent)}%
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.marginLine, { color: t.ink }]}>
+                      বিক্রি ৳{toBnDigits(Math.round(report.cogsSales))} · ক্রয়মূল্য ৳{toBnDigits(Math.round(report.cogs))}
+                    </Text>
+                    <Text style={[styles.marginHint, { color: t.muted }]}>
+                      যেসব বিক্রিতে পণ্য বাছাই করা হয়েছিল, শুধু সেগুলোর ভিত্তিতে হিসাব করা
+                    </Text>
+                  </View>
+                </View>
+              </SurfaceCard>
+            </AnimatedSection>
+          ) : null}
+
+          <AnimatedSection index={3}>
           <SectionHeader icon="profit" title="দৈনিক বিক্রি" />
           <SurfaceCard padded={false} style={styles.chart}>
             {report.dailySales.map((d) => (
@@ -348,20 +353,27 @@ export default function ReportsScreen() {
             ))
           )}
           </AnimatedSection>
+
+          {report.receivablesAging.some((b) => b.count > 0) ? (
+            <AnimatedSection index={6}>
+              <SectionHeader icon="customers" title="বকেয়ার বয়স" />
+              <View style={styles.agingRow}>
+                {report.receivablesAging.map((b) => (
+                  <SurfaceCard key={b.bucket} style={styles.agingCard}>
+                    <Text style={[styles.agingBucket, { color: t.muted }]}>{b.bucket}</Text>
+                    <TakaAmount
+                      amount={b.amount}
+                      size="sm"
+                      color={b.bucket === '৬০+ দিন' ? t.pay : t.ink}
+                    />
+                    <Text style={[styles.agingCount, { color: t.muted }]}>{toBnDigits(b.count)} জন</Text>
+                  </SurfaceCard>
+                ))}
+              </View>
+            </AnimatedSection>
+          ) : null}
         </ScrollView>
       )}
-
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => {
-          setPaywallOpen(false);
-          setPendingExport(null);
-        }}
-        onUnlocked={() => {
-          if (pendingExport) void runExport(pendingExport);
-          setPendingExport(null);
-        }}
-      />
     </TabScreenShell>
   );
 }
@@ -380,7 +392,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   exportBtnText: { ...typography.label },
-  lock: { fontSize: 14 },
+  marginCard: { gap: spacing.sm },
+  marginRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  marginPct: { fontFamily: fonts.numeral, fontSize: 32 },
+  marginLine: { ...typography.bodySm, fontFamily: fonts.bengaliSemiBold },
+  marginHint: { ...typography.caption },
+  agingRow: { flexDirection: 'row', gap: spacing.sm },
+  agingCard: { flex: 1, gap: 4, alignItems: 'center' },
+  agingBucket: { ...typography.caption },
+  agingCount: { ...typography.caption },
   rangeRow: { flexDirection: 'row', gap: spacing.sm },
   rangeChip: {
     paddingHorizontal: spacing.md,

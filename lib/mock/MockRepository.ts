@@ -7,6 +7,7 @@ import type {
   Installment,
   Language,
   LearningItem,
+  LineItem,
   Loan,
   LoanInput,
   LoanPayment,
@@ -229,6 +230,7 @@ export class MockRepository implements IDataRepository {
   private loans = [...seedLoans];
   private installments: Installment[] = [...seedInstallments];
   private loanPayments: LoanPayment[] = [...seedLoanPayments];
+  private lineItems: LineItem[] = [];
   private dayCloses: DayClose[] = [];
   private language: Language = 'bn';
   private syncState: SyncState = 'online';
@@ -359,6 +361,13 @@ export class MockRepository implements IDataRepository {
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
+  async getLineItems(businessId: string) {
+    const txIds = new Set(
+      this.transactions.filter((t) => t.business_id === businessId && !t.deleted_at).map((t) => t.id),
+    );
+    return this.lineItems.filter((li) => txIds.has(li.transaction_id) && !li.deleted_at);
+  }
+
   async createTransaction(input: TransactionInput) {
     const tx: Transaction = {
       id: uuid(),
@@ -375,6 +384,21 @@ export class MockRepository implements IDataRepository {
       ...base(),
     };
     this.transactions.unshift(tx);
+
+    if (input.line_items && input.line_items.length > 0) {
+      for (const li of input.line_items) {
+        this.lineItems.push({
+          id: uuid(),
+          transaction_id: tx.id,
+          product_id: li.product_id ?? null,
+          name: li.name,
+          qty: li.qty,
+          unit_price: li.unit_price,
+          total: li.total,
+          ...base(),
+        });
+      }
+    }
 
     if (input.party_id) {
       const party = await this.getParty(input.party_id);
@@ -577,7 +601,17 @@ export class MockRepository implements IDataRepository {
     const transactions = this.transactions.filter(
       (t) => t.business_id === businessId && !t.deleted_at,
     );
-    return buildReport(parties, transactions, businessId, rangeDays ?? 30, seedExpenseCategories);
+    const lineItems = await this.getLineItems(businessId);
+    const products = await this.getProducts(businessId);
+    return buildReport(
+      parties,
+      transactions,
+      businessId,
+      rangeDays ?? 30,
+      seedExpenseCategories,
+      lineItems,
+      products,
+    );
   }
 
   async getCreditScoreSummary(businessId: string) {

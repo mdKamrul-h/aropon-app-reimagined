@@ -5,6 +5,7 @@ import type {
   Installment,
   Language,
   LearningItem,
+  LineItem,
   Loan,
   LoanInput,
   LoanPayment,
@@ -374,6 +375,16 @@ export class LocalRepository implements IDataRepository {
       ],
     );
 
+    if (input.line_items && input.line_items.length > 0) {
+      for (const li of input.line_items) {
+        await db.runAsync(
+          `INSERT INTO line_items (id, transaction_id, product_id, name, qty, unit_price, total, created_at, updated_at, sync_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+          [uuid(), tx.id, li.product_id ?? null, li.name, li.qty, li.unit_price, li.total, ts, ts],
+        );
+      }
+    }
+
     const biz = await this.getBusiness(input.business_id);
     if (biz) {
       let cash = biz.cash_in_hand;
@@ -444,6 +455,17 @@ export class LocalRepository implements IDataRepository {
       [businessId],
     );
     return rows.map((r) => this.mapExpenseCategory(r));
+  }
+
+  async getLineItems(businessId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT li.* FROM line_items li
+       JOIN transactions t ON t.id = li.transaction_id
+       WHERE t.business_id = ? AND li.deleted_at IS NULL AND t.deleted_at IS NULL`,
+      [businessId],
+    );
+    return rows.map((r) => this.mapLineItem(r));
   }
 
   async getLoans(businessId: string, status?: Parameters<IDataRepository['getLoans']>[1]) {
@@ -622,7 +644,9 @@ export class LocalRepository implements IDataRepository {
     const parties = await this.getParties(businessId);
     const transactions = await this.getTransactions(businessId);
     const expenseCategories = await this.getExpenseCategories(businessId);
-    return buildReport(parties, transactions, businessId, rangeDays, expenseCategories);
+    const lineItems = await this.getLineItems(businessId);
+    const products = await this.getProducts(businessId);
+    return buildReport(parties, transactions, businessId, rangeDays, expenseCategories, lineItems, products);
   }
 
   async getCreditScoreSummary(businessId: string) {
@@ -718,6 +742,21 @@ export class LocalRepository implements IDataRepository {
         installment.updated_at,
       ],
     );
+  }
+
+  private mapLineItem(row: Record<string, unknown>): LineItem {
+    return {
+      id: row.id as string,
+      transaction_id: row.transaction_id as string,
+      product_id: row.product_id as string | null,
+      name: row.name as string,
+      qty: row.qty as number,
+      unit_price: row.unit_price as number,
+      total: row.total as number,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
   }
 
   private mapInstallment(row: Record<string, unknown>): Installment {

@@ -991,6 +991,16 @@ export class LocalRepository implements IDataRepository {
     };
   }
 
+  private parseDrivers(value: unknown): CreditScoreSnapshot['drivers'] {
+    if (typeof value !== 'string' || value.length === 0) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   private mapCreditScoreSnapshot(row: Record<string, unknown>): CreditScoreSnapshot {
     return {
       id: row.id as string,
@@ -999,7 +1009,7 @@ export class LocalRepository implements IDataRepository {
       band: row.band as CreditScoreSnapshot['band'],
       confidence: row.confidence as CreditScoreSnapshot['confidence'],
       dscr: (row.dscr as number | null) ?? null,
-      drivers: JSON.parse((row.drivers as string) || '[]'),
+      drivers: this.parseDrivers(row.drivers),
       computed_at: row.computed_at as string,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,

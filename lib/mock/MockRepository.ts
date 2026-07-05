@@ -1,6 +1,7 @@
 import type {
   Business,
   BusinessInput,
+  CreditScoreSnapshot,
   DashboardSummary,
   DayClose,
   ExpenseCategory,
@@ -22,7 +23,7 @@ import type {
 import { LEARNING_ARTICLES, toLearningItems } from '@/constants/learningArticles';
 import type { IDataRepository, SyncState } from '@/lib/repository/types';
 import { buildDashboard, buildReport } from '@/lib/analytics/reportBuilder';
-import { fetchCreditScoreSummary } from '@/lib/scoring/fetchCreditScoreSummary';
+import { computeCreditScore } from '@/lib/scoring/scoreEngine';
 import { generateInstallmentPlan, daysLate } from '@/lib/loans/installmentSchedule';
 import { todayISO, nowISO, uuid } from '@/utils/bn-numerals';
 
@@ -231,6 +232,7 @@ export class MockRepository implements IDataRepository {
   private installments: Installment[] = [...seedInstallments];
   private loanPayments: LoanPayment[] = [...seedLoanPayments];
   private lineItems: LineItem[] = [];
+  private creditScores: CreditScoreSnapshot[] = [];
   private dayCloses: DayClose[] = [];
   private language: Language = 'bn';
   private syncState: SyncState = 'online';
@@ -615,7 +617,55 @@ export class MockRepository implements IDataRepository {
   }
 
   async getCreditScoreSummary(businessId: string) {
-    return fetchCreditScoreSummary(businessId);
+    const business = await this.getBusiness(businessId);
+    if (!business) throw new Error('Business not found');
+    const transactions = await this.getTransactions(businessId);
+    const parties = await this.getParties(businessId);
+    const loans = await this.getLoans(businessId);
+    const loanPayments = await this.getLoanPayments(businessId);
+    const previous = await this.getLatestCreditScoreSnapshot(businessId);
+
+    const installmentsByLoan: Record<string, Installment[]> = {};
+    for (const loan of loans) {
+      installmentsByLoan[loan.id] = await this.getInstallments(loan.id);
+    }
+
+    const result = computeCreditScore(
+      { business, transactions, parties, loans, loanPayments, installmentsByLoan },
+      previous?.drivers ?? [],
+    );
+
+    const isNewDay = !previous || previous.computed_at.slice(0, 10) !== todayISO();
+    if (isNewDay) {
+      await this.saveCreditScoreSnapshot({
+        business_id: businessId,
+        score: result.score,
+        band: result.band,
+        confidence: result.confidence,
+        dscr: result.dscr,
+        drivers: result.components.map((c) => ({ key: c.key, label: c.label, impact: c.points })),
+        computed_at: nowISO(),
+      });
+    }
+
+    return result.summary;
+  }
+
+  async getLatestCreditScoreSnapshot(businessId: string) {
+    return (
+      this.creditScores
+        .filter((s) => s.business_id === businessId && !s.deleted_at)
+        .sort((a, b) => b.computed_at.localeCompare(a.computed_at))[0] ?? null
+    );
+  }
+
+  async saveCreditScoreSnapshot(
+    snapshot: Omit<CreditScoreSnapshot, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+  ) {
+    const row: CreditScoreSnapshot = { id: uuid(), ...snapshot, ...base() };
+    this.creditScores.push(row);
+    this.syncState = 'pending';
+    return row;
   }
 
   async getLearningItems() {

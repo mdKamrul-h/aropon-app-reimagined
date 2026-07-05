@@ -2,6 +2,7 @@ import type {
   Business,
   BusinessInput,
   Category,
+  CreditScoreSnapshot,
   DashboardSummary,
   DayClose,
   ExpenseCategory,
@@ -65,6 +66,10 @@ export interface IDataRepository {
   getDashboard(businessId: string): Promise<DashboardSummary>;
   getReport(businessId: string, rangeDays?: number): Promise<ReportSummary>;
   getCreditScoreSummary(businessId: string): Promise<CreditScoreSummary>;
+  getLatestCreditScoreSnapshot(businessId: string): Promise<CreditScoreSnapshot | null>;
+  saveCreditScoreSnapshot(
+    snapshot: Omit<CreditScoreSnapshot, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+  ): Promise<CreditScoreSnapshot>;
   getLearningItems(): Promise<LearningItem[]>;
   getSyncState(): SyncState;
   syncNow?(): Promise<void>;

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnimatedSection } from '@/components/ui/AnimatedSection';
 import { InsightBanner } from '@/components/ui/InsightBanner';
@@ -9,16 +11,20 @@ import { TabScreenShell } from '@/components/ui/TabScreenShell';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { TakaAmount } from '@/components/ui/TakaAmount';
+import { AroponIcon } from '@/components/icons/AroponIcon';
 import { ScoreGauge } from '@/components/score/ScoreGauge';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
+import { useToast } from '@/context/ToastContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import {
   bandColorToken,
   confidenceLabelBn,
   confidenceLabelEn,
 } from '@/lib/scoring/bandColors';
+import { buildLoanReadinessHtml } from '@/lib/export/loanReadinessExport';
 import type { CreditScoreFlag, CreditScoreSummary } from '@/types/creditScore';
+import type { LoanPayment } from '@/types/schema';
 import { bandGradients, colors, fonts, radius, spacing, typography } from '@/constants/theme';
 import { toBnDigits } from '@/utils/bn-numerals';
 
@@ -68,10 +74,12 @@ export default function CreditScoreScreen() {
   const insets = useSafeAreaInsets();
   const { business, language } = useAuth();
   const { repo } = useRepository();
+  const { showError } = useToast();
   const { resolvedTheme: t } = useUiPreferences();
   const [summary, setSummary] = useState<CreditScoreSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!business) return;
@@ -88,6 +96,34 @@ export default function CreditScoreScreen() {
     setRefreshing(true);
     void load();
   }, [load]);
+
+  const sharePack = async () => {
+    if (!business || !summary) return;
+    setExporting(true);
+    try {
+      const [report, loans] = await Promise.all([
+        repo.getReport(business.id, 90),
+        repo.getLoans(business.id),
+      ]);
+      const loanPaymentsByLoan: Record<string, LoanPayment[]> = {};
+      const allPayments = await repo.getLoanPayments(business.id);
+      for (const l of loans) {
+        loanPaymentsByLoan[l.id] = allPayments.filter((p) => p.loan_id === l.id);
+      }
+      const html = buildLoanReadinessHtml(business, report, summary, loans, loanPaymentsByLoan);
+      if (Platform.OS === 'web') {
+        await Share.share({ message: html, title: `${business.name}-loan-readiness.html` });
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'ঋণ প্রস্তুতি প্যাক' });
+        }
+      }
+    } catch {
+      showError('তৈরি করতে সমস্যা হয়েছে');
+    }
+    setExporting(false);
+  };
 
   if (!business) return null;
 
@@ -123,7 +159,15 @@ export default function CreditScoreScreen() {
   return (
     <TabScreenShell withNav tabActive="more">
     <View style={styles.root}>
-      <ScreenHeader title="ক্রেডিট স্কোর" backFallback="/(tabs)" />
+      <ScreenHeader
+        title="ক্রেডিট স্কোর"
+        backFallback="/(tabs)"
+        right={
+          <Pressable onPress={sharePack} style={styles.shareBtn} disabled={exporting}>
+            <AroponIcon name="backup" size={22} />
+          </Pressable>
+        }
+      />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         refreshControl={
@@ -234,10 +278,26 @@ export default function CreditScoreScreen() {
         </AnimatedSection>
 
         <AnimatedSection index={5}>
+          <Pressable
+            style={[styles.packBtn, { backgroundColor: t.brand }]}
+            onPress={sharePack}
+            disabled={exporting}
+          >
+            <Text style={styles.packBtnText}>
+              {exporting
+                ? '...'
+                : language === 'en'
+                  ? 'Share loan-readiness pack'
+                  : 'ঋণ প্রস্তুতি প্যাক শেয়ার করুন'}
+            </Text>
+          </Pressable>
+        </AnimatedSection>
+
+        <AnimatedSection index={6}>
           <Text style={[styles.disclaimer, { color: t.muted }]}>
             {language === 'en'
-              ? 'Demo score data shown — will update when the live scoring service launches.'
-              : 'প্রদর্শিত স্কোর ডেমো ডেটা — প্রকৃত স্কোরিং সার্ভিস চালু হলে আপডেট হবে।'}
+              ? 'Computed on your device from your own transactions, receivables, and loan repayment history — not a bank-verified score.'
+              : 'আপনার নিজের লেনদেন, বাকি ও লোন পরিশোধের ইতিহাস থেকে ডিভাইসেই হিসাব করা — এটি ব্যাংক-যাচাইকৃত স্কোর নয়।'}
           </Text>
         </AnimatedSection>
       </ScrollView>
@@ -327,6 +387,13 @@ const styles = StyleSheet.create({
     minWidth: 36,
   },
   leverText: { ...typography.bodySm, flex: 1, lineHeight: 22 },
+  shareBtn: { padding: spacing.xs },
+  packBtn: {
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  packBtnText: { ...typography.label, color: '#fff' },
   disclaimer: {
     ...typography.caption,
     textAlign: 'center',

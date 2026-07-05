@@ -14,7 +14,10 @@ export type LoanStatus = 'active' | 'paid';
 export type LenderType = 'bank' | 'mfi' | 'personal';
 export type InterestType = 'flat' | 'reducing' | 'none';
 export type LoanFrequency = 'weekly' | 'monthly';
-export type CreditBand = 'poor' | 'fair' | 'good' | 'very_good' | 'excellent';
+/** Matches CreditScoreBandName in types/creditScore.ts (lowercased,
+ * underscored) — the persisted snapshot must speak the same vocabulary
+ * as the UI that renders it. */
+export type CreditBand = 'excellent' | 'good' | 'fair' | 'poor' | 'very_poor';
 export type ScoreConfidence = 'preliminary' | 'building' | 'verified';
 export type BusinessType =
   | 'grocery'

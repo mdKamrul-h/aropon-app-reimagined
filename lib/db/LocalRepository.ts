@@ -1,5 +1,6 @@
 import type {
   BusinessType,
+  CreditScoreSnapshot,
   DayClose,
   ExpenseCategory,
   Installment,
@@ -15,7 +16,7 @@ import type {
   TransactionInput,
 } from '@/types/schema';
 import { buildDashboard, buildReport } from '@/lib/analytics/reportBuilder';
-import { fetchCreditScoreSummary } from '@/lib/scoring/fetchCreditScoreSummary';
+import { computeCreditScore } from '@/lib/scoring/scoreEngine';
 import { getDatabase, getMeta, setMeta } from '@/lib/db/database';
 import { mockRepository } from '@/lib/mock/MockRepository';
 import type { IDataRepository, SyncState } from '@/lib/repository/types';
@@ -650,7 +651,81 @@ export class LocalRepository implements IDataRepository {
   }
 
   async getCreditScoreSummary(businessId: string) {
-    return fetchCreditScoreSummary(businessId);
+    const [business, transactions, parties, loans, loanPayments, previous] = await Promise.all([
+      this.getBusiness(businessId),
+      this.getTransactions(businessId),
+      this.getParties(businessId),
+      this.getLoans(businessId),
+      this.getLoanPayments(businessId),
+      this.getLatestCreditScoreSnapshot(businessId),
+    ]);
+    if (!business) throw new Error('Business not found');
+
+    const installmentsByLoan: Record<string, Installment[]> = {};
+    for (const loan of loans) {
+      installmentsByLoan[loan.id] = await this.getInstallments(loan.id);
+    }
+
+    const result = computeCreditScore(
+      { business, transactions, parties, loans, loanPayments, installmentsByLoan },
+      previous?.drivers ?? [],
+    );
+
+    // At most one snapshot per business per day — every screen that shows
+    // the score (home, more, credit-score) calls this, and without this
+    // guard each view would insert a near-duplicate row. Same-day repeat
+    // calls just recompute and return fresh numbers without writing;
+    // "previous" then stays anchored to the last *different* day, which
+    // is what makes the delta meaningful instead of always reading 0.
+    const isNewDay = !previous || previous.computed_at.slice(0, 10) !== todayISO();
+    if (isNewDay) {
+      await this.saveCreditScoreSnapshot({
+        business_id: businessId,
+        score: result.score,
+        band: result.band,
+        confidence: result.confidence,
+        dscr: result.dscr,
+        drivers: result.components.map((c) => ({ key: c.key, label: c.label, impact: c.points })),
+        computed_at: nowISO(),
+      });
+    }
+
+    return result.summary;
+  }
+
+  async getLatestCreditScoreSnapshot(businessId: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM credit_scores WHERE business_id = ? AND deleted_at IS NULL ORDER BY computed_at DESC LIMIT 1',
+      [businessId],
+    );
+    return row ? this.mapCreditScoreSnapshot(row) : null;
+  }
+
+  async saveCreditScoreSnapshot(
+    snapshot: Omit<CreditScoreSnapshot, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
+  ) {
+    const db = await this.db();
+    const ts = nowISO();
+    const row: CreditScoreSnapshot = { id: uuid(), created_at: ts, updated_at: ts, deleted_at: null, ...snapshot };
+    await db.runAsync(
+      `INSERT INTO credit_scores (id, business_id, score, band, confidence, dscr, drivers, computed_at, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        row.id,
+        row.business_id,
+        row.score,
+        row.band,
+        row.confidence,
+        row.dscr,
+        JSON.stringify(row.drivers),
+        row.computed_at,
+        row.created_at,
+        row.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+    return row;
   }
 
   async getLearningItems() {
@@ -910,6 +985,22 @@ export class LocalRepository implements IDataRepository {
       difference: row.difference as number,
       is_locked: rowToBool(row.is_locked),
       note: row.note as string | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapCreditScoreSnapshot(row: Record<string, unknown>): CreditScoreSnapshot {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      score: row.score as number,
+      band: row.band as CreditScoreSnapshot['band'],
+      confidence: row.confidence as CreditScoreSnapshot['confidence'],
+      dscr: (row.dscr as number | null) ?? null,
+      drivers: JSON.parse((row.drivers as string) || '[]'),
+      computed_at: row.computed_at as string,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,

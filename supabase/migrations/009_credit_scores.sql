@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS credit_scores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   score INT NOT NULL,
-  band TEXT NOT NULL CHECK (band IN ('poor', 'fair', 'good', 'very_good', 'excellent')),
+  band TEXT NOT NULL CHECK (band IN ('excellent', 'good', 'fair', 'poor', 'very_poor')),
   confidence TEXT NOT NULL DEFAULT 'preliminary'
     CHECK (confidence IN ('preliminary', 'building', 'verified')),
   dscr NUMERIC(6,3),

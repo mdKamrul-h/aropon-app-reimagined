@@ -5,7 +5,7 @@ export function resolveActiveTab(pathname: string): TabShellActive {
   if (pathname.includes('/accounting') || pathname.includes('-khata') || pathname.includes('/ledger')) {
     return 'accounting';
   }
-  if (pathname.includes('/inventory') || pathname.includes('stock-khata')) {
+  if (pathname.includes('/inventory')) {
     return 'inventory';
   }
   if (
@@ -36,8 +36,6 @@ export const TAB_ROUTES: Record<TabShellActive, string> = {
 export const STACK_WITH_NAV_PATTERNS = [
   '/khata',
   '/ledger',
-  '/baki-khata',
-  '/stock-khata',
   '/reports',
   '/loans',
   '/notifications',

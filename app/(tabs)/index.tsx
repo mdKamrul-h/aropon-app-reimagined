@@ -95,7 +95,7 @@ export default function HomeScreen() {
         ? { label: 'আজ কিস্তি', value: `${toBnDigits(summary.dueInstallmentCount)} টি`, route: '/loans' }
         : null,
       summary.totalReceivable > 0
-        ? { label: 'আদায় বাকি', value: formatTaka(summary.totalReceivable), route: '/baki-khata' }
+        ? { label: 'আদায় বাকি', value: formatTaka(summary.totalReceivable), route: '/khata' }
         : null,
     ].filter(Boolean) as FocusItem[];
   }, [summary]);

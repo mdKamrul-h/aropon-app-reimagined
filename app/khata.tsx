@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,9 @@ import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import { PremiumReminderActions } from '@/components/premium/PremiumReminderActions';
 import { PARTY_TYPE_LABELS, partyTypeEmptyTitle } from '@/constants/partyLabels';
-import type { Party, PartyType } from '@/types/schema';
+import type { Party, PartyType, Transaction } from '@/types/schema';
 import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
+import { toBnDigits, todayISO } from '@/utils/bn-numerals';
 
 function matchesQuery(name: string, query: string) {
   return name.toLowerCase().includes(query.trim().toLowerCase());
@@ -32,7 +33,9 @@ export default function KhataScreen() {
   const { resolvedTheme: t } = useUiPreferences();
   const [segment, setSegment] = useState<PartyType>('customer');
   const [parties, setParties] = useState<Party[]>([]);
+  const [txns, setTxns] = useState<Transaction[]>([]);
   const [query, setQuery] = useState('');
+  const [duesOnly, setDuesOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -41,7 +44,12 @@ export default function KhataScreen() {
     setLoading(true);
     setError('');
     try {
-      setParties(await repo.getParties(business.id, segment));
+      const [partyList, txList] = await Promise.all([
+        repo.getParties(business.id, segment),
+        repo.getTransactions(business.id),
+      ]);
+      setParties(partyList);
+      setTxns(txList);
     } catch {
       setError('ডেটা লোড করা যায়নি');
     }
@@ -54,8 +62,20 @@ export default function KhataScreen() {
 
   if (!business) return null;
 
-  const totalRecv = parties.filter((p) => p.balance > 0).reduce((s, p) => s + p.balance, 0);
-  const filtered = parties.filter((p) => matchesQuery(p.name, query));
+  const dueDirectionMatch = (p: Party) => (segment === 'customer' ? p.balance > 0 : p.balance < 0);
+
+  const totalDue = parties.filter(dueDirectionMatch).reduce((s, p) => s + Math.abs(p.balance), 0);
+
+  const todayMovement = useMemo(() => {
+    const today = todayISO();
+    const wantType = segment === 'customer' ? 'payment_in' : 'payment_out';
+    return txns
+      .filter((tx) => tx.transaction_date === today && tx.type === wantType)
+      .reduce((sum, tx) => sum + tx.amount, 0);
+  }, [txns, segment]);
+
+  const byDues = duesOnly ? parties.filter(dueDirectionMatch) : parties;
+  const filtered = byDues.filter((p) => matchesQuery(p.name, query));
   const noResults = query.trim().length > 0 && filtered.length === 0;
 
   return (
@@ -80,12 +100,40 @@ export default function KhataScreen() {
         </View>
       </ScreenHeader>
 
-      <View style={[styles.recvCard, { backgroundColor: t.receiveTint }]}>
-        <Text style={[styles.recvLabel, { color: t.receive }]}>মোট পাবেন</Text>
-        <TakaAmount amount={totalRecv} color={t.receive} />
+      <View style={styles.statRow}>
+        <View style={[styles.statCard, { backgroundColor: t.receiveTint }]}>
+          <Text style={[styles.statLabel, { color: t.receive }]}>
+            {segment === 'customer' ? 'মোট পাবেন' : 'মোট দিবেন'}
+          </Text>
+          <TakaAmount amount={totalDue} color={t.receive} size="sm" />
+        </View>
+        <View style={[styles.statCard, { backgroundColor: t.surfaceMuted }]}>
+          <Text style={[styles.statLabel, { color: t.mutedDark }]}>
+            {segment === 'customer' ? 'আজ আদায়' : 'আজ পরিশোধ'}
+          </Text>
+          <TakaAmount amount={todayMovement} color={t.brand} size="sm" />
+        </View>
       </View>
 
-      <SearchField value={query} onChangeText={setQuery} noResults={noResults} />
+      <View style={styles.filterRow}>
+        <View style={{ flex: 1 }}>
+          <SearchField value={query} onChangeText={setQuery} noResults={noResults} />
+        </View>
+        <Pressable
+          onPress={() => setDuesOnly((v) => !v)}
+          style={[
+            styles.duesChip,
+            {
+              backgroundColor: duesOnly ? t.brand : t.card,
+              borderColor: duesOnly ? t.brand : t.border,
+            },
+          ]}
+        >
+          <Text style={{ color: duesOnly ? '#fff' : t.inkSecondary, ...typography.caption }}>
+            শুধু বাকি
+          </Text>
+        </Pressable>
+      </View>
 
       {error ? (
         <AnimatedPressable style={[styles.errorBanner, { backgroundColor: t.payTint }]} onPress={() => void load()} haptic="light">
@@ -168,13 +216,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.6)',
   },
   addPillText: { ...typography.caption, color: colors.white, fontFamily: fonts.bengaliSemiBold },
-  recvCard: {
-    margin: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    gap: spacing.xs,
+  statRow: { flexDirection: 'row', gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  statCard: { flex: 1, padding: spacing.md, borderRadius: radius.lg, gap: 4 },
+  statLabel: { ...typography.caption },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  duesChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
   },
-  recvLabel: { ...typography.label },
   tile: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { AroponIcon } from '@/components/icons/AroponIcon';
@@ -21,6 +21,8 @@ import type { Category, Product } from '@/types/schema';
 import { toBnDigits } from '@/utils/bn-numerals';
 import { fonts, spacing, typography } from '@/constants/theme';
 
+type SortMode = 'needed' | 'name';
+
 function matchesQuery(name: string, query: string) {
   return name.toLowerCase().includes(query.trim().toLowerCase());
 }
@@ -35,6 +37,7 @@ export default function InventoryScreen() {
   const [categoryId, setCategoryId] = useState(CATEGORY_ALL_ID);
   const [query, setQuery] = useState('');
   const [lowOnly, setLowOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('needed');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,17 +68,33 @@ export default function InventoryScreen() {
 
   if (!business) return null;
 
-  const stockValue = products.reduce((s, p) => s + p.sell_price * p.qty, 0);
+  const stockValue = products.reduce((s, p) => s + p.cost_price * p.qty, 0);
   const lowCount = products.filter((p) => p.qty <= p.low_stock_threshold).length;
   const filtered = products
     .filter((p) => matchesQuery(p.name, query))
     .filter((p) => !lowOnly || p.qty <= p.low_stock_threshold)
-    .filter((p) => categoryId === CATEGORY_ALL_ID || p.category_id === categoryId);
+    .filter((p) => categoryId === CATEGORY_ALL_ID || p.category_id === categoryId)
+    .slice()
+    .sort((a, b) =>
+      sortMode === 'name'
+        ? a.name.localeCompare(b.name)
+        : a.qty - a.low_stock_threshold - (b.qty - b.low_stock_threshold),
+    );
   const noResults = (query.trim().length > 0 || lowOnly) && filtered.length === 0;
+
+  const addBtn = (
+    <Pressable
+      onPress={() => router.push('/product/new')}
+      style={[styles.addBtn, { backgroundColor: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.12)' }]}
+      accessibilityLabel="নতুন পণ্য যোগ করুন"
+    >
+      <Text style={styles.addBtnText}>+ পণ্য</Text>
+    </Pressable>
+  );
 
   const headerExtra = (
     <AppCard style={styles.banner}>
-      <Text style={[styles.bannerLabel, { color: 'rgba(255,255,255,0.85)' }]}>স্টক মূল্য</Text>
+      <Text style={[styles.bannerLabel, { color: 'rgba(255,255,255,0.85)' }]}>স্টক মূল্য (ক্রয় মূল্যে)</Text>
       <TakaAmount amount={stockValue} color="#fff" />
       {lowCount > 0 ? (
         <AnimatedPressable onPress={() => setLowOnly((v) => !v)} haptic="light">
@@ -89,7 +108,7 @@ export default function InventoryScreen() {
 
   return (
     <AppScreenShell variant="tabRoot">
-      <AppHeader variant="tabRoot" title="মালামাল" shopName="মালামাল" shopMeta={business.name}>
+      <AppHeader variant="tabRoot" title="মালামাল" shopName="মালামাল" shopMeta={business.name} right={addBtn}>
         {headerExtra}
       </AppHeader>
 
@@ -108,6 +127,15 @@ export default function InventoryScreen() {
             </Text>
           </AnimatedPressable>
         ) : null}
+        <AnimatedPressable
+          style={[styles.filterChip, { backgroundColor: t.surfaceMuted }]}
+          onPress={() => setSortMode((m) => (m === 'needed' ? 'name' : 'needed'))}
+          haptic="light"
+        >
+          <Text style={[styles.filterChipText, { color: t.mutedDark }]}>
+            {sortMode === 'needed' ? 'কম স্টক আগে' : 'নাম অনুসারে'}
+          </Text>
+        </AnimatedPressable>
       </View>
 
       {error ? (
@@ -169,6 +197,13 @@ export default function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
+  addBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  addBtnText: { ...typography.caption, color: '#fff', fontFamily: fonts.bengaliSemiBold },
   banner: {
     marginTop: spacing.sm,
     backgroundColor: 'rgba(255,255,255,0.15)',

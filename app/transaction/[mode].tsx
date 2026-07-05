@@ -141,11 +141,28 @@ export default function TransactionScreen() {
   const [amountEditedByHand, setAmountEditedByHand] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(type === 'sale' || type === 'purchase' || type === 'expense');
   const [saving, setSaving] = useState(false);
+  // When opened from a specific party's ledger (e.g. the "পেলাম +"/"দিলাম −"
+  // buttons), the picker must reflect THAT party's actual type — not the
+  // mode's default — or the pre-selected party silently fails to appear
+  // in its own picker (a dealer opened via "receive" would look for it
+  // among customers and never find it).
+  const [resolvedPartyType, setResolvedPartyType] = useState<'customer' | 'dealer'>(
+    partyType ?? 'customer',
+  );
 
   useEffect(() => {
     if (!business) return;
-    const loadType = partyType ?? 'customer';
-    repo.getParties(business.id, loadType).then(setParties);
+    let cancelled = false;
+    (async () => {
+      let loadType: 'customer' | 'dealer' = partyType ?? 'customer';
+      if (params.partyId) {
+        const p = await repo.getParty(String(params.partyId));
+        if (p) loadType = p.type;
+      }
+      if (cancelled) return;
+      setResolvedPartyType(loadType);
+      setParties(await repo.getParties(business.id, loadType));
+    })();
     if (type === 'sale' || type === 'purchase') {
       repo.getProducts(business.id).then(setProducts);
     }
@@ -155,7 +172,10 @@ export default function TransactionScreen() {
         setExpenseCategoryId((prev) => prev ?? cats[0]?.id);
       });
     }
-  }, [business, repo, partyType, type]);
+    return () => {
+      cancelled = true;
+    };
+  }, [business, repo, partyType, type, params.partyId]);
 
   useEffect(() => {
     if (creditFromParam) setIsCredit(true);
@@ -215,7 +235,7 @@ export default function TransactionScreen() {
       return;
     }
     if (partyRequired && !partyId) {
-      showError(partyTypeSelectHint(partyType ?? 'customer'));
+      showError(partyTypeSelectHint(resolvedPartyType));
       return;
     }
     setSaving(true);
@@ -301,7 +321,7 @@ export default function TransactionScreen() {
         {showPartyPicker && (
           <SurfaceCard style={styles.partyPicker}>
             <Text style={[styles.partyLabel, { color: theme.inkSecondary }]}>
-              {partyTypeLabel(partyType ?? 'customer')}
+              {partyTypeLabel(resolvedPartyType)}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.partyScroll}>
               <Pressable
@@ -312,7 +332,7 @@ export default function TransactionScreen() {
                 onPress={() =>
                   router.push({
                     pathname: '/party/new',
-                    params: { type: partyType ?? 'customer' },
+                    params: { type: resolvedPartyType },
                   })
                 }
               >

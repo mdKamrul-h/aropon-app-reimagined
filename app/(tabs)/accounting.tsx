@@ -25,9 +25,8 @@ const DESTINATIONS: {
   tintKey: string;
 }[] = [
   { title: 'হিসাব খাতা', subtitle: 'সব লেনদেন, ক্যাশবুক ও খরচ', route: '/ledger', icon: 'ledger', tintKey: 'sale' },
-  { title: 'বাকি খাতা', subtitle: 'গ্রাহক ও সাপ্লায়ারের বাকি', route: '/baki-khata', icon: 'receipt', tintKey: 'party' },
-  { title: 'স্টক খাতা', subtitle: 'পণ্য ও স্টক', route: '/stock-khata', icon: 'inventory', tintKey: 'receive' },
-  { title: 'গ্রাহক খাতা', subtitle: 'নাম ধরে বাকি', route: '/khata', icon: 'customers', tintKey: 'party' },
+  { title: 'বাকি খাতা', subtitle: 'গ্রাহক ও সাপ্লায়ারের বাকি', route: '/khata', icon: 'receipt', tintKey: 'party' },
+  { title: 'স্টক খাতা', subtitle: 'পণ্য ও স্টক', route: '/(tabs)/inventory', icon: 'inventory', tintKey: 'receive' },
   { title: 'রিপোর্ট', subtitle: 'লাভ-ক্ষতি', route: '/reports', icon: 'profit', tintKey: 'sale' },
 ];
 

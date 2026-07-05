@@ -19,8 +19,6 @@ export function AppStack() {
       <Stack.Screen name="calculator" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="khata" options={{ presentation: 'card' }} />
       <Stack.Screen name="ledger" options={{ presentation: 'card' }} />
-      <Stack.Screen name="baki-khata" options={{ presentation: 'card' }} />
-      <Stack.Screen name="stock-khata" options={{ presentation: 'card' }} />
       <Stack.Screen name="party/[id]" options={{ presentation: 'card' }} />
       <Stack.Screen name="party/new" options={{ presentation: 'modal' }} />
       <Stack.Screen name="product/new" options={{ presentation: 'modal' }} />

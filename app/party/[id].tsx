@@ -34,21 +34,7 @@ import type { Party, Transaction } from '@/types/schema';
 
 import { fonts, radius, spacing, typography } from '@/constants/theme';
 
-
-
-const TYPE_LABELS: Record<string, string> = {
-
-  sale: 'বিক্রি',
-
-  purchase: 'ক্রয়',
-
-  payment_in: 'আদায়',
-
-  payment_out: 'পরিশোধ',
-
-  expense: 'খরচ',
-
-};
+import { TRANSACTION_TYPE_LABELS } from '@/constants/actions';
 
 
 
@@ -236,13 +222,13 @@ export default function PartyLedgerScreen() {
 
                   <Text style={[styles.txNote, { color: t.ink }]}>
 
-                    {tx.note ?? TYPE_LABELS[tx.type] ?? tx.type}
+                    {tx.note ?? TRANSACTION_TYPE_LABELS[tx.type] ?? tx.type}
 
                   </Text>
 
                   <Text style={[styles.txMeta, { color: t.muted }]}>
 
-                    {tx.transaction_date} · {TYPE_LABELS[tx.type] ?? tx.type}
+                    {tx.transaction_date} · {TRANSACTION_TYPE_LABELS[tx.type] ?? tx.type}
 
                   </Text>
 
@@ -252,7 +238,7 @@ export default function PartyLedgerScreen() {
 
                   <TakaAmount amount={tx.amount} color={txColor} />
 
-                  <TakaAmount amount={Math.abs(running)} color={t.muted} size="sm" />
+                  <TakaAmount amount={running} color={t.muted} size="sm" showSign />
 
                 </View>
 

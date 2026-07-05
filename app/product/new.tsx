@@ -22,6 +22,7 @@ export default function NewProductScreen() {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('পিস');
   const [qty, setQty] = useState('0');
+  const [costPrice, setCostPrice] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [lowStock, setLowStock] = useState('5');
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,6 +48,7 @@ export default function NewProductScreen() {
         name: name.trim(),
         unit,
         qty: Number(qty) || 0,
+        cost_price: Number(costPrice) || 0,
         sell_price: Number(sellPrice) || 0,
         low_stock_threshold: Number(lowStock) || 5,
         category_id: categoryId,
@@ -93,6 +95,7 @@ export default function NewProductScreen() {
         </View>
         <Input label="একক" value={unit} onChangeText={setUnit} />
         <Input label="পরিমাণ" value={qty} onChangeText={setQty} keyboardType="numeric" />
+        <Input label="ক্রয় মূল্য (৳)" value={costPrice} onChangeText={setCostPrice} keyboardType="numeric" />
         <Input label="বিক্রয় মূল্য (৳)" value={sellPrice} onChangeText={setSellPrice} keyboardType="numeric" />
         <Input label="কম স্টক সতর্কতা" value={lowStock} onChangeText={setLowStock} keyboardType="numeric" />
         <Button label="সংরক্ষণ করুন" onPress={submit} loading={loading} />

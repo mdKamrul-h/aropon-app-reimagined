@@ -1,0 +1,743 @@
+import type {
+  BusinessType,
+  DayClose,
+  Installment,
+  Language,
+  LearningItem,
+  Loan,
+  LoanInput,
+  Party,
+  Product,
+  Transaction,
+  TransactionInput,
+} from '@/types/schema';
+import { buildDashboard, buildReport } from '@/lib/analytics/reportBuilder';
+import { fetchCreditScoreSummary } from '@/lib/scoring/fetchCreditScoreSummary';
+import { getDatabase, getMeta, setMeta } from '@/lib/db/database';
+import { mockRepository } from '@/lib/mock/MockRepository';
+import type { IDataRepository, SyncState } from '@/lib/repository/types';
+import { isOnline, syncEngine } from '@/lib/sync/syncEngine';
+import { nowISO, todayISO, uuid } from '@/utils/bn-numerals';
+
+function rowToBool(v: unknown) {
+  return v === 1 || v === true;
+}
+
+/** LocalRepository wraps SQLite with MockRepository fallback for dev bootstrap only */
+export class LocalRepository implements IDataRepository {
+  private fallback = mockRepository;
+  private syncState: SyncState = 'offline';
+  private ready = false;
+
+  async init() {
+    await getDatabase();
+    this.ready = true;
+    if (await isOnline()) {
+      this.syncState = 'online';
+      try {
+        await syncEngine();
+      } catch {
+        this.syncState = 'pending';
+      }
+    }
+  }
+
+  private async db() {
+    if (!this.ready) await this.init();
+    return getDatabase();
+  }
+
+  async getProfile(userId: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM profiles WHERE user_id = ? AND deleted_at IS NULL',
+      [userId],
+    );
+    if (!row) return this.fallback.getProfile(userId);
+    return this.mapProfile(row);
+  }
+
+  async upsertProfile(p: Parameters<IDataRepository['upsertProfile']>[0]) {
+    const db = await this.db();
+    const existing = await this.getProfile(p.user_id);
+    const profile = {
+      id: existing?.id ?? uuid(),
+      user_id: p.user_id,
+      language: p.language ?? 'bn',
+      full_name: p.full_name ?? existing?.full_name ?? null,
+      phone: p.phone ?? existing?.phone ?? null,
+      username: p.username ?? existing?.username ?? null,
+      created_at: existing?.created_at ?? nowISO(),
+      updated_at: nowISO(),
+      deleted_at: null,
+    };
+    await db.runAsync(
+      `INSERT OR REPLACE INTO profiles (id, user_id, language, full_name, phone, username, created_at, updated_at, deleted_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending')`,
+      [
+        profile.id,
+        profile.user_id,
+        profile.language,
+        profile.full_name,
+        profile.phone,
+        profile.username,
+        profile.created_at,
+        profile.updated_at,
+      ],
+    );
+    if (p.language) await setMeta('language', p.language);
+    return profile;
+  }
+
+  async getBusinesses(ownerId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM businesses WHERE owner_id = ? AND deleted_at IS NULL',
+      [ownerId],
+    );
+    if (rows.length === 0) return this.fallback.getBusinesses(ownerId);
+    return rows.map((r) => this.mapBusiness(r));
+  }
+
+  async getBusiness(id: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM businesses WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    if (!row) return this.fallback.getBusiness(id);
+    return this.mapBusiness(row);
+  }
+
+  async createBusiness(ownerId: string, input: Parameters<IDataRepository['createBusiness']>[1]) {
+    const biz = await this.fallback.createBusiness(ownerId, input);
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO businesses (id, owner_id, name, owner_name, business_type, district, logo_url, reminder_sms_template, cash_in_hand, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        biz.id,
+        biz.owner_id,
+        biz.name,
+        biz.owner_name,
+        biz.business_type,
+        biz.district,
+        biz.logo_url,
+        biz.reminder_sms_template,
+        biz.cash_in_hand,
+        biz.created_at,
+        biz.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+    return biz;
+  }
+
+  async updateBusiness(id: string, patch: Parameters<IDataRepository['updateBusiness']>[1]) {
+    const existing = await this.getBusiness(id);
+    if (!existing) throw new Error('Business not found');
+    const biz = { ...existing, ...patch, updated_at: nowISO() };
+    const db = await this.db();
+    await db.runAsync(
+      `UPDATE businesses SET name=?, owner_name=?, district=?, logo_url=?, reminder_sms_template=?, cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
+      [
+        biz.name,
+        biz.owner_name,
+        biz.district,
+        biz.logo_url,
+        biz.reminder_sms_template,
+        biz.cash_in_hand,
+        nowISO(),
+        id,
+      ],
+    );
+    this.syncState = 'pending';
+    return biz;
+  }
+
+  async getParties(businessId: string, type?: Parameters<IDataRepository['getParties']>[1]) {
+    const db = await this.db();
+    if (type) {
+      const rows = await db.getAllAsync<Record<string, unknown>>(
+        'SELECT * FROM parties WHERE business_id = ? AND type = ? AND deleted_at IS NULL ORDER BY name ASC',
+        [businessId, type],
+      );
+      return rows.map((r) => this.mapParty(r));
+    }
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM parties WHERE business_id = ? AND deleted_at IS NULL ORDER BY name ASC',
+      [businessId],
+    );
+    return rows.map((r) => this.mapParty(r));
+  }
+
+  async getParty(id: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM parties WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    return row ? this.mapParty(row) : null;
+  }
+
+  async createParty(input: Parameters<IDataRepository['createParty']>[0]) {
+    const party = await this.fallback.createParty(input);
+    await this.persistParty(party);
+    return party;
+  }
+
+  async updateParty(id: string, patch: Parameters<IDataRepository['updateParty']>[1]) {
+    const party = await this.fallback.updateParty(id, patch);
+    await this.persistParty(party);
+    return party;
+  }
+
+  private async persistParty(party: Party) {
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO parties (id, business_id, name, phone, type, balance, last_activity_at, notes, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        party.id,
+        party.business_id,
+        party.name,
+        party.phone,
+        party.type,
+        party.balance,
+        party.last_activity_at,
+        party.notes,
+        party.created_at,
+        party.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+  }
+
+  async getProducts(businessId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM products WHERE business_id = ? AND deleted_at IS NULL ORDER BY name ASC',
+      [businessId],
+    );
+    return rows.map((r) => this.mapProduct(r));
+  }
+
+  async getCategories(businessId: string) {
+    const { buildCategoriesForBusiness } = await import('@/constants/productCategories');
+    return buildCategoriesForBusiness(businessId);
+  }
+
+  async getProduct(id: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM products WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    return row ? this.mapProduct(row) : null;
+  }
+
+  async createProduct(businessId: string, data: Parameters<IDataRepository['createProduct']>[1]) {
+    const p = await this.fallback.createProduct(businessId, data);
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO products (id, business_id, category_id, name, unit, qty, low_stock_threshold, cost_price, sell_price, icon_key, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        p.id,
+        p.business_id,
+        p.category_id,
+        p.name,
+        p.unit,
+        p.qty,
+        p.low_stock_threshold,
+        p.cost_price,
+        p.sell_price,
+        p.icon_key,
+        p.created_at,
+        p.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+    return p;
+  }
+
+  async updateProduct(id: string, patch: Parameters<IDataRepository['updateProduct']>[1]) {
+    const p = await this.fallback.updateProduct(id, patch);
+    await this.persistProduct(p);
+    return p;
+  }
+
+  private async persistProduct(p: Product) {
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO products (id, business_id, category_id, name, unit, qty, low_stock_threshold, cost_price, sell_price, icon_key, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        p.id,
+        p.business_id,
+        p.category_id,
+        p.name,
+        p.unit,
+        p.qty,
+        p.low_stock_threshold,
+        p.cost_price,
+        p.sell_price,
+        p.icon_key,
+        p.created_at,
+        p.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+  }
+
+  async getTransactions(businessId: string, partyId?: string) {
+    const db = await this.db();
+    if (partyId) {
+      const rows = await db.getAllAsync<Record<string, unknown>>(
+        'SELECT * FROM transactions WHERE business_id = ? AND party_id = ? AND deleted_at IS NULL ORDER BY created_at DESC',
+        [businessId, partyId],
+      );
+      return rows.map((r) => this.mapTransaction(r));
+    }
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM transactions WHERE business_id = ? AND deleted_at IS NULL ORDER BY created_at DESC',
+      [businessId],
+    );
+    return rows.map((r) => this.mapTransaction(r));
+  }
+
+  async createTransaction(input: TransactionInput) {
+    const db = await this.db();
+    const ts = nowISO();
+    const tx: Transaction = {
+      id: uuid(),
+      business_id: input.business_id,
+      party_id: input.party_id ?? null,
+      type: input.type,
+      amount: input.amount,
+      payment_method: input.payment_method ?? 'cash',
+      is_credit: input.is_credit ?? false,
+      note: input.note ?? null,
+      transaction_date: input.transaction_date ?? todayISO(),
+      running_balance: null,
+      created_at: ts,
+      updated_at: ts,
+      deleted_at: null,
+    };
+
+    if (input.party_id) {
+      const party = await this.getParty(input.party_id);
+      if (party) {
+        let delta = 0;
+        if (input.type === 'sale' && input.is_credit) delta = input.amount;
+        if (input.type === 'purchase' && input.is_credit) delta = -input.amount;
+        if (input.type === 'payment_in') delta = -input.amount;
+        if (input.type === 'payment_out') delta = input.amount;
+        const balance = party.balance + delta;
+        tx.running_balance = balance;
+        await this.persistParty({
+          ...party,
+          balance,
+          last_activity_at: ts,
+          updated_at: ts,
+        });
+      }
+    }
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO transactions (id, business_id, party_id, type, amount, payment_method, is_credit, note, transaction_date, running_balance, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        tx.id,
+        tx.business_id,
+        tx.party_id,
+        tx.type,
+        tx.amount,
+        tx.payment_method,
+        tx.is_credit ? 1 : 0,
+        tx.note,
+        tx.transaction_date,
+        tx.running_balance,
+        tx.created_at,
+        tx.updated_at,
+      ],
+    );
+
+    const biz = await this.getBusiness(input.business_id);
+    if (biz) {
+      let cash = biz.cash_in_hand;
+      if (!input.is_credit && input.type === 'sale') cash += input.amount;
+      if (input.type === 'payment_in') cash += input.amount;
+      if (['purchase', 'payment_out', 'expense'].includes(input.type)) cash -= input.amount;
+      await db.runAsync(
+        `UPDATE businesses SET cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
+        [cash, ts, biz.id],
+      );
+    }
+
+    this.syncState = 'pending';
+    return tx;
+  }
+
+  async getLoans(businessId: string, status?: Parameters<IDataRepository['getLoans']>[1]) {
+    const db = await this.db();
+    if (status) {
+      const rows = await db.getAllAsync<Record<string, unknown>>(
+        'SELECT * FROM loans WHERE business_id = ? AND status = ? AND deleted_at IS NULL ORDER BY next_due_date ASC',
+        [businessId, status],
+      );
+      return rows.map((r) => this.mapLoan(r));
+    }
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM loans WHERE business_id = ? AND deleted_at IS NULL ORDER BY next_due_date ASC',
+      [businessId],
+    );
+    return rows.map((r) => this.mapLoan(r));
+  }
+
+  async createLoan(businessId: string, input: LoanInput) {
+    const loan = await this.fallback.createLoan(businessId, input);
+    await this.persistLoan(loan);
+    return loan;
+  }
+
+  async payInstallment(loanId: string, amount: number) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM loans WHERE id = ? AND deleted_at IS NULL',
+      [loanId],
+    );
+    if (!row) return this.fallback.payInstallment(loanId, amount);
+
+    const loan = this.mapLoan(row);
+    const installment: Installment = {
+      id: uuid(),
+      loan_id: loanId,
+      amount,
+      due_date: loan.next_due_date ?? todayISO(),
+      paid_at: nowISO(),
+      is_paid: true,
+      created_at: nowISO(),
+      updated_at: nowISO(),
+      deleted_at: null,
+    };
+
+    loan.outstanding = Math.max(0, loan.outstanding - amount);
+    loan.paid_installments += 1;
+    if (loan.outstanding <= 0) loan.status = 'paid';
+    loan.updated_at = nowISO();
+
+    if (loan.next_due_date) {
+      const next = new Date(`${loan.next_due_date}T12:00:00`);
+      next.setMonth(next.getMonth() + 1);
+      loan.next_due_date = next.toISOString().slice(0, 10);
+    }
+
+    await this.persistInstallment(installment);
+    await this.persistLoan(loan);
+
+    const biz = await this.getBusiness(loan.business_id);
+    if (biz) {
+      biz.cash_in_hand -= amount;
+      biz.updated_at = nowISO();
+      await db.runAsync(
+        `UPDATE businesses SET cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
+        [biz.cash_in_hand, biz.updated_at, biz.id],
+      );
+    }
+
+    this.syncState = 'pending';
+    return loan;
+  }
+
+  async getDayCloses(businessId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM day_closes WHERE business_id = ? AND deleted_at IS NULL ORDER BY close_date DESC',
+      [businessId],
+    );
+    return rows.map((r) => this.mapDayClose(r));
+  }
+
+  async createDayClose(
+    businessId: string,
+    expected: number,
+    counted: number,
+    note?: string,
+  ) {
+    const dc = await this.fallback.createDayClose(businessId, expected, counted, note);
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO day_closes (id, business_id, close_date, expected_cash, counted_cash, difference, is_locked, note, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        dc.id,
+        dc.business_id,
+        dc.close_date,
+        dc.expected_cash,
+        dc.counted_cash,
+        dc.difference,
+        dc.is_locked ? 1 : 0,
+        dc.note,
+        dc.created_at,
+        dc.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+    return dc;
+  }
+
+  async isDayLocked(businessId: string, date: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<{ id: string }>(
+      'SELECT id FROM day_closes WHERE business_id = ? AND close_date = ? AND is_locked = 1 AND deleted_at IS NULL',
+      [businessId, date],
+    );
+    return !!row;
+  }
+
+  async getDashboard(businessId: string) {
+    const biz = await this.getBusiness(businessId);
+    const parties = await this.getParties(businessId);
+    const products = await this.getProducts(businessId);
+    const transactions = await this.getTransactions(businessId);
+    const loans = await this.getLoans(businessId);
+    return buildDashboard(
+      biz?.cash_in_hand ?? 0,
+      parties,
+      products,
+      transactions,
+      loans,
+      businessId,
+    );
+  }
+
+  async getReport(businessId: string, rangeDays = 30) {
+    const parties = await this.getParties(businessId);
+    const transactions = await this.getTransactions(businessId);
+    return buildReport(parties, transactions, businessId, rangeDays);
+  }
+
+  async getCreditScoreSummary(businessId: string) {
+    return fetchCreditScoreSummary(businessId);
+  }
+
+  async getLearningItems() {
+    const db = await this.db();
+    let rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM learning_items WHERE deleted_at IS NULL ORDER BY sort_order ASC',
+    );
+    if (rows.length === 0 && (await isOnline())) {
+      try {
+        await syncEngine();
+      } catch {
+        /* fall through */
+      }
+      rows = await db.getAllAsync<Record<string, unknown>>(
+        'SELECT * FROM learning_items WHERE deleted_at IS NULL ORDER BY sort_order ASC',
+      );
+    }
+    if (rows.length === 0) return this.fallback.getLearningItems();
+    return rows.map((r) => this.mapLearningItem(r));
+  }
+
+  getSyncState(): SyncState {
+    return this.syncState;
+  }
+
+  async syncNow() {
+    if (await isOnline()) {
+      await syncEngine();
+      this.syncState = 'online';
+    } else {
+      this.syncState = 'offline';
+    }
+  }
+
+  async setLanguage(lang: Language) {
+    await setMeta('language', lang);
+    this.fallback.setLanguage!(lang);
+  }
+
+  async getLanguage() {
+    const stored = await getMeta('language');
+    if (stored === 'bn' || stored === 'en') return stored;
+    return this.fallback.getLanguage!();
+  }
+
+  private async persistLoan(loan: Loan) {
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO loans (id, business_id, lender_name, loan_type, principal, outstanding, total_installments, paid_installments, next_due_date, status, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        loan.id,
+        loan.business_id,
+        loan.lender_name,
+        loan.loan_type,
+        loan.principal,
+        loan.outstanding,
+        loan.total_installments,
+        loan.paid_installments,
+        loan.next_due_date,
+        loan.status,
+        loan.created_at,
+        loan.updated_at,
+      ],
+    );
+    this.syncState = 'pending';
+  }
+
+  private async persistInstallment(installment: Installment) {
+    const db = await this.db();
+    await db.runAsync(
+      `INSERT OR REPLACE INTO installments (id, loan_id, amount, due_date, paid_at, is_paid, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [
+        installment.id,
+        installment.loan_id,
+        installment.amount,
+        installment.due_date,
+        installment.paid_at,
+        installment.is_paid ? 1 : 0,
+        installment.created_at,
+        installment.updated_at,
+      ],
+    );
+  }
+
+  private mapProfile(row: Record<string, unknown>) {
+    return {
+      id: row.id as string,
+      user_id: row.user_id as string,
+      language: row.language as 'bn' | 'en',
+      full_name: row.full_name as string | null,
+      phone: row.phone as string | null,
+      username: (row.username as string | null) ?? null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapBusiness(row: Record<string, unknown>) {
+    return {
+      id: row.id as string,
+      owner_id: row.owner_id as string,
+      name: row.name as string,
+      owner_name: row.owner_name as string,
+      business_type: row.business_type as BusinessType,
+      district: row.district as string,
+      logo_url: row.logo_url as string | null,
+      reminder_sms_template: row.reminder_sms_template as string,
+      cash_in_hand: row.cash_in_hand as number,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapParty(row: Record<string, unknown>): Party {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      name: row.name as string,
+      phone: row.phone as string | null,
+      type: row.type as Party['type'],
+      balance: row.balance as number,
+      last_activity_at: row.last_activity_at as string | null,
+      notes: row.notes as string | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapProduct(row: Record<string, unknown>): Product {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      category_id: row.category_id as string | null,
+      name: row.name as string,
+      unit: row.unit as string,
+      qty: row.qty as number,
+      low_stock_threshold: row.low_stock_threshold as number,
+      cost_price: row.cost_price as number,
+      sell_price: row.sell_price as number,
+      icon_key: row.icon_key as string | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapTransaction(row: Record<string, unknown>): Transaction {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      party_id: row.party_id as string | null,
+      type: row.type as Transaction['type'],
+      amount: row.amount as number,
+      payment_method: row.payment_method as Transaction['payment_method'],
+      is_credit: rowToBool(row.is_credit),
+      note: row.note as string | null,
+      transaction_date: row.transaction_date as string,
+      running_balance: row.running_balance as number | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapLoan(row: Record<string, unknown>): Loan {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      lender_name: row.lender_name as string,
+      loan_type: row.loan_type as string,
+      principal: row.principal as number,
+      outstanding: row.outstanding as number,
+      total_installments: row.total_installments as number,
+      paid_installments: row.paid_installments as number,
+      next_due_date: row.next_due_date as string | null,
+      status: row.status as Loan['status'],
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapDayClose(row: Record<string, unknown>): DayClose {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string,
+      close_date: row.close_date as string,
+      expected_cash: row.expected_cash as number,
+      counted_cash: row.counted_cash as number,
+      difference: row.difference as number,
+      is_locked: rowToBool(row.is_locked),
+      note: row.note as string | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapLearningItem(row: Record<string, unknown>): LearningItem {
+    return {
+      id: row.id as string,
+      title_bn: row.title_bn as string,
+      title_en: row.title_en as string,
+      summary_bn: row.summary_bn as string,
+      summary_en: row.summary_en as string,
+      category: row.category as string,
+      sort_order: row.sort_order as number,
+      is_new: rowToBool(row.is_new),
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+}
+
+export const localRepository = new LocalRepository();

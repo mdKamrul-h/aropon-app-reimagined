@@ -7,6 +7,7 @@ import type {
   LearningItem,
   Loan,
   LoanInput,
+  LoanPayment,
   Party,
   Product,
   Transaction,
@@ -18,6 +19,7 @@ import { getDatabase, getMeta, setMeta } from '@/lib/db/database';
 import { mockRepository } from '@/lib/mock/MockRepository';
 import type { IDataRepository, SyncState } from '@/lib/repository/types';
 import { isOnline, syncEngine } from '@/lib/sync/syncEngine';
+import { generateInstallmentPlan, daysLate } from '@/lib/loans/installmentSchedule';
 import { nowISO, todayISO, uuid } from '@/utils/bn-numerals';
 
 function rowToBool(v: unknown) {
@@ -462,48 +464,87 @@ export class LocalRepository implements IDataRepository {
 
   async createLoan(businessId: string, input: LoanInput) {
     const loan = await this.fallback.createLoan(businessId, input);
+    const plan = loan.principal > 0 && loan.total_installments > 0 ? generateInstallmentPlan(loan) : [];
+    if (plan.length > 0) loan.next_due_date = plan[0].due_date;
     await this.persistLoan(loan);
+    for (const p of plan) {
+      await this.persistInstallment({
+        id: uuid(),
+        loan_id: loan.id,
+        amount: p.amount,
+        due_date: p.due_date,
+        paid_at: null,
+        is_paid: false,
+        paid_amount: 0,
+        created_at: nowISO(),
+        updated_at: nowISO(),
+        deleted_at: null,
+      });
+    }
     return loan;
   }
 
-  async payInstallment(loanId: string, amount: number) {
+  async getInstallments(loanId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM installments WHERE loan_id = ? AND deleted_at IS NULL ORDER BY due_date ASC',
+      [loanId],
+    );
+    return rows.map((r) => this.mapInstallment(r));
+  }
+
+  async getLoanPayments(businessId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT lp.* FROM loan_payments lp
+       JOIN loans l ON l.id = lp.loan_id
+       WHERE l.business_id = ? AND lp.deleted_at IS NULL
+       ORDER BY lp.paid_on DESC`,
+      [businessId],
+    );
+    return rows.map((r) => this.mapLoanPayment(r));
+  }
+
+  async payInstallment(loanId: string, amount?: number, paidOn?: string) {
     const db = await this.db();
     const row = await db.getFirstAsync<Record<string, unknown>>(
       'SELECT * FROM loans WHERE id = ? AND deleted_at IS NULL',
       [loanId],
     );
-    if (!row) return this.fallback.payInstallment(loanId, amount);
+    if (!row) return this.fallback.payInstallment(loanId, amount ?? 0, paidOn);
 
     const loan = this.mapLoan(row);
-    const installment: Installment = {
-      id: uuid(),
-      loan_id: loanId,
-      amount,
-      due_date: loan.next_due_date ?? todayISO(),
-      paid_at: nowISO(),
-      is_paid: true,
-      created_at: nowISO(),
-      updated_at: nowISO(),
-      deleted_at: null,
-    };
+    const pending = await this.getInstallments(loanId);
+    const nextUnpaid = pending.find((i) => !i.is_paid);
+    const paidDate = paidOn ?? todayISO();
+    const paidAmount = amount ?? nextUnpaid?.amount ?? loan.outstanding;
 
-    loan.outstanding = Math.max(0, loan.outstanding - amount);
-    loan.paid_installments += 1;
-    if (loan.outstanding <= 0) loan.status = 'paid';
-    loan.updated_at = nowISO();
-
-    if (loan.next_due_date) {
-      const next = new Date(`${loan.next_due_date}T12:00:00`);
-      next.setMonth(next.getMonth() + 1);
-      loan.next_due_date = next.toISOString().slice(0, 10);
+    if (nextUnpaid) {
+      await db.runAsync(
+        `UPDATE installments SET is_paid=1, paid_amount=?, paid_at=?, updated_at=?, sync_status='pending' WHERE id=?`,
+        [paidAmount, nowISO(), nowISO(), nextUnpaid.id],
+      );
+      const late = daysLate(nextUnpaid.due_date, paidDate);
+      await db.runAsync(
+        `INSERT INTO loan_payments (id, loan_id, installment_id, amount, due_date, paid_on, days_late, created_at, updated_at, sync_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        [uuid(), loanId, nextUnpaid.id, paidAmount, nextUnpaid.due_date, paidDate, late, nowISO(), nowISO()],
+      );
     }
 
-    await this.persistInstallment(installment);
+    loan.outstanding = Math.max(0, loan.outstanding - paidAmount);
+    loan.paid_installments += 1;
+    loan.updated_at = nowISO();
+
+    const remaining = (await this.getInstallments(loanId)).filter((i) => !i.is_paid);
+    loan.next_due_date = remaining[0]?.due_date ?? null;
+    if (remaining.length === 0 || loan.outstanding <= 0) loan.status = 'paid';
+
     await this.persistLoan(loan);
 
     const biz = await this.getBusiness(loan.business_id);
     if (biz) {
-      biz.cash_in_hand -= amount;
+      biz.cash_in_hand -= paidAmount;
       biz.updated_at = nowISO();
       await db.runAsync(
         `UPDATE businesses SET cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
@@ -663,8 +704,8 @@ export class LocalRepository implements IDataRepository {
   private async persistInstallment(installment: Installment) {
     const db = await this.db();
     await db.runAsync(
-      `INSERT OR REPLACE INTO installments (id, loan_id, amount, due_date, paid_at, is_paid, created_at, updated_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT OR REPLACE INTO installments (id, loan_id, amount, due_date, paid_at, is_paid, paid_amount, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         installment.id,
         installment.loan_id,
@@ -672,10 +713,41 @@ export class LocalRepository implements IDataRepository {
         installment.due_date,
         installment.paid_at,
         installment.is_paid ? 1 : 0,
+        installment.paid_amount ?? 0,
         installment.created_at,
         installment.updated_at,
       ],
     );
+  }
+
+  private mapInstallment(row: Record<string, unknown>): Installment {
+    return {
+      id: row.id as string,
+      loan_id: row.loan_id as string,
+      amount: row.amount as number,
+      due_date: row.due_date as string,
+      paid_at: row.paid_at as string | null,
+      is_paid: rowToBool(row.is_paid),
+      paid_amount: (row.paid_amount as number) ?? 0,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapLoanPayment(row: Record<string, unknown>): LoanPayment {
+    return {
+      id: row.id as string,
+      loan_id: row.loan_id as string,
+      installment_id: row.installment_id as string | null,
+      amount: row.amount as number,
+      due_date: row.due_date as string,
+      paid_on: row.paid_on as string,
+      days_late: row.days_late as number,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
   }
 
   private mapProfile(row: Record<string, unknown>) {

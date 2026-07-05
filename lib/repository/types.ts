@@ -5,10 +5,12 @@ import type {
   DashboardSummary,
   DayClose,
   ExpenseCategory,
+  Installment,
   Language,
   LearningItem,
   Loan,
   LoanInput,
+  LoanPayment,
   Party,
   PartyInput,
   Product,
@@ -44,7 +46,12 @@ export interface IDataRepository {
   getExpenseCategories(businessId: string): Promise<ExpenseCategory[]>;
   getLoans(businessId: string, status?: Loan['status']): Promise<Loan[]>;
   createLoan(businessId: string, input: LoanInput): Promise<Loan>;
-  payInstallment(loanId: string, amount: number): Promise<Loan>;
+  getInstallments(loanId: string): Promise<Installment[]>;
+  /** Pays the next unpaid installment. If amount is omitted, uses that
+   * installment's scheduled amount. paidOn defaults to today — pass it
+   * explicitly to backdate/record a late payment accurately. */
+  payInstallment(loanId: string, amount?: number, paidOn?: string): Promise<Loan>;
+  getLoanPayments(businessId: string): Promise<LoanPayment[]>;
   getDayCloses(businessId: string): Promise<DayClose[]>;
   createDayClose(
     businessId: string,

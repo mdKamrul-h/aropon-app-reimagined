@@ -9,6 +9,7 @@ import type {
   LearningItem,
   Loan,
   LoanInput,
+  LoanPayment,
   Party,
   PartyInput,
   Product,
@@ -21,6 +22,7 @@ import { LEARNING_ARTICLES, toLearningItems } from '@/constants/learningArticles
 import type { IDataRepository, SyncState } from '@/lib/repository/types';
 import { buildDashboard, buildReport } from '@/lib/analytics/reportBuilder';
 import { fetchCreditScoreSummary } from '@/lib/scoring/fetchCreditScoreSummary';
+import { generateInstallmentPlan, daysLate } from '@/lib/loans/installmentSchedule';
 import { todayISO, nowISO, uuid } from '@/utils/bn-numerals';
 
 const MOCK_USER = 'mock-user-001';
@@ -155,6 +157,12 @@ const seedTransactions: Transaction[] = [
   },
 ];
 
+function monthsAgoISO(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
 const seedLoans: Loan[] = [
   {
     id: 'loan-1',
@@ -170,12 +178,36 @@ const seedLoans: Loan[] = [
     status: 'active',
     interest_rate: 12,
     interest_type: 'flat',
-    disbursed_on: todayISO(),
-    first_due_date: todayISO(),
+    disbursed_on: monthsAgoISO(6),
+    first_due_date: monthsAgoISO(5),
     frequency: 'monthly',
     ...base(),
   },
 ];
+
+const seedLoan1Plan = generateInstallmentPlan(seedLoans[0]);
+const seedInstallments: Installment[] = seedLoan1Plan.map((p, i) => ({
+  id: `inst-1-${i + 1}`,
+  loan_id: seedLoans[0].id,
+  amount: p.amount,
+  due_date: p.due_date,
+  paid_at: i < seedLoans[0].paid_installments ? nowISO() : null,
+  is_paid: i < seedLoans[0].paid_installments,
+  paid_amount: i < seedLoans[0].paid_installments ? p.amount : 0,
+  ...base(),
+}));
+const seedLoanPayments: LoanPayment[] = seedInstallments
+  .filter((i) => i.is_paid)
+  .map((inst, i) => ({
+    id: `lp-1-${i + 1}`,
+    loan_id: seedLoans[0].id,
+    installment_id: inst.id,
+    amount: inst.amount,
+    due_date: inst.due_date,
+    paid_on: inst.due_date,
+    days_late: 0,
+    ...base(),
+  }));
 
 const seedLearning: LearningItem[] = toLearningItems(LEARNING_ARTICLES);
 
@@ -195,7 +227,8 @@ export class MockRepository implements IDataRepository {
   private products = [...seedProducts];
   private transactions = [...seedTransactions];
   private loans = [...seedLoans];
-  private installments: Installment[] = [];
+  private installments: Installment[] = [...seedInstallments];
+  private loanPayments: LoanPayment[] = [...seedLoanPayments];
   private dayCloses: DayClose[] = [];
   private language: Language = 'bn';
   private syncState: SyncState = 'online';
@@ -428,35 +461,70 @@ export class MockRepository implements IDataRepository {
       frequency: input.frequency ?? 'monthly',
       ...base(),
     };
+    const plan = loan.principal > 0 && loan.total_installments > 0 ? generateInstallmentPlan(loan) : [];
+    if (plan.length > 0) loan.next_due_date = plan[0].due_date;
     this.loans.push(loan);
+    for (const p of plan) {
+      this.installments.push({
+        id: uuid(),
+        loan_id: loan.id,
+        amount: p.amount,
+        due_date: p.due_date,
+        paid_at: null,
+        is_paid: false,
+        paid_amount: 0,
+        ...base(),
+      });
+    }
     this.syncState = 'pending';
     return loan;
   }
 
-  async payInstallment(loanId: string, amount: number) {
+  async getInstallments(loanId: string) {
+    return this.installments
+      .filter((i) => i.loan_id === loanId && !i.deleted_at)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+  }
+
+  async getLoanPayments(businessId: string) {
+    const loanIds = new Set(this.loans.filter((l) => l.business_id === businessId).map((l) => l.id));
+    return this.loanPayments
+      .filter((p) => loanIds.has(p.loan_id) && !p.deleted_at)
+      .sort((a, b) => b.paid_on.localeCompare(a.paid_on));
+  }
+
+  async payInstallment(loanId: string, amount?: number, paidOn?: string) {
     const loan = this.loans.find((l) => l.id === loanId);
     if (!loan) throw new Error('Loan not found');
 
-    this.installments.push({
-      id: uuid(),
-      loan_id: loanId,
-      amount,
-      due_date: loan.next_due_date ?? todayISO(),
-      paid_at: nowISO(),
-      is_paid: true,
-      ...base(),
-    });
+    const nextUnpaid = (await this.getInstallments(loanId)).find((i) => !i.is_paid);
+    const paidDate = paidOn ?? todayISO();
+    const paidAmount = amount ?? nextUnpaid?.amount ?? loan.outstanding;
 
-    loan.outstanding = Math.max(0, loan.outstanding - amount);
-    loan.paid_installments += 1;
-    if (loan.outstanding <= 0) loan.status = 'paid';
-    if (loan.next_due_date) {
-      const next = new Date(`${loan.next_due_date}T12:00:00`);
-      next.setMonth(next.getMonth() + 1);
-      loan.next_due_date = next.toISOString().slice(0, 10);
+    if (nextUnpaid) {
+      nextUnpaid.is_paid = true;
+      nextUnpaid.paid_amount = paidAmount;
+      nextUnpaid.paid_at = nowISO();
+      nextUnpaid.updated_at = nowISO();
+      this.loanPayments.push({
+        id: uuid(),
+        loan_id: loanId,
+        installment_id: nextUnpaid.id,
+        amount: paidAmount,
+        due_date: nextUnpaid.due_date,
+        paid_on: paidDate,
+        days_late: daysLate(nextUnpaid.due_date, paidDate),
+        ...base(),
+      });
     }
+
+    loan.outstanding = Math.max(0, loan.outstanding - paidAmount);
+    loan.paid_installments += 1;
+    const remaining = (await this.getInstallments(loanId)).filter((i) => !i.is_paid);
+    loan.next_due_date = remaining[0]?.due_date ?? null;
+    if (remaining.length === 0 || loan.outstanding <= 0) loan.status = 'paid';
     loan.updated_at = nowISO();
-    this.business.cash_in_hand -= amount;
+    this.business.cash_in_hand -= paidAmount;
     this.syncState = 'pending';
     return loan;
   }

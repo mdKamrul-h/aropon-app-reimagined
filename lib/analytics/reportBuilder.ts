@@ -1,5 +1,6 @@
 import type {
   DashboardSummary,
+  ExpenseCategory,
   Loan,
   Party,
   PaymentMethod,
@@ -106,6 +107,7 @@ export function buildReport(
   transactions: Transaction[],
   businessId: string,
   rangeDays = 30,
+  expenseCategories: ExpenseCategory[] = [],
 ): ReportSummary {
   const cutoff = isoDateDaysAgo(rangeDays);
   const txs = transactions.filter(
@@ -138,9 +140,13 @@ export function buildReport(
     dailySales.push({ label: bnDayLabel(date), amount });
   }
 
+  const categoryNameById = new Map(expenseCategories.map((c) => [c.id, c.name_bn]));
   const expenseMap = new Map<string, number>();
   for (const t of txs.filter((tx) => tx.type === 'expense')) {
-    const label = t.note?.trim() || 'অন্যান্য';
+    const label =
+      (t.expense_category_id && categoryNameById.get(t.expense_category_id)) ||
+      t.note?.trim() ||
+      'অন্যান্য';
     expenseMap.set(label, (expenseMap.get(label) ?? 0) + t.amount);
   }
   const expenseBreakdown = [...expenseMap.entries()]

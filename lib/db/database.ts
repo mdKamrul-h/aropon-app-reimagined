@@ -233,6 +233,34 @@ async function migrate(database: SQLite.SQLiteDatabase) {
   await addColumnIfMissing(database, 'loans', 'frequency', "TEXT NOT NULL DEFAULT 'monthly'");
 
   await addColumnIfMissing(database, 'installments', 'paid_amount', 'REAL NOT NULL DEFAULT 0');
+
+  await seedExpenseCategories(database);
+}
+
+/** Same fixed IDs as supabase/migrations/008_expense_categories.sql so the
+ * system categories reconcile as the same row instead of duplicating on sync. */
+async function seedExpenseCategories(database: SQLite.SQLiteDatabase) {
+  const existing = await database.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) as n FROM expense_categories WHERE is_system = 1',
+  );
+  if ((existing?.n ?? 0) > 0) return;
+
+  const now = new Date().toISOString();
+  const rows: [string, string, string, number][] = [
+    ['00000000-0000-0000-0000-000000000001', 'দোকান ভাড়া', 'Shop rent', 1],
+    ['00000000-0000-0000-0000-000000000002', 'বিদ্যুৎ বিল', 'Electricity', 2],
+    ['00000000-0000-0000-0000-000000000003', 'পরিবহন', 'Transport', 3],
+    ['00000000-0000-0000-0000-000000000004', 'বেতন', 'Salary', 4],
+    ['00000000-0000-0000-0000-000000000005', 'মেরামত', 'Repairs', 5],
+    ['00000000-0000-0000-0000-000000000006', 'অন্যান্য', 'Other', 6],
+  ];
+  for (const [id, nameBn, nameEn, sortOrder] of rows) {
+    await database.runAsync(
+      `INSERT OR IGNORE INTO expense_categories (id, business_id, name_bn, name_en, is_system, sort_order, created_at, updated_at, sync_status)
+       VALUES (?, NULL, ?, ?, 1, ?, ?, ?, 'synced')`,
+      [id, nameBn, nameEn, sortOrder, now, now],
+    );
+  }
 }
 
 async function addColumnIfMissing(

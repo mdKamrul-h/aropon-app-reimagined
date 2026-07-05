@@ -3,6 +3,7 @@ import type {
   BusinessInput,
   DashboardSummary,
   DayClose,
+  ExpenseCategory,
   Installment,
   Language,
   LearningItem,
@@ -177,6 +178,15 @@ const seedLoans: Loan[] = [
 ];
 
 const seedLearning: LearningItem[] = toLearningItems(LEARNING_ARTICLES);
+
+const seedExpenseCategories: ExpenseCategory[] = [
+  { id: '00000000-0000-0000-0000-000000000001', business_id: null, name_bn: 'দোকান ভাড়া', name_en: 'Shop rent', is_system: true, sort_order: 1, ...base() },
+  { id: '00000000-0000-0000-0000-000000000002', business_id: null, name_bn: 'বিদ্যুৎ বিল', name_en: 'Electricity', is_system: true, sort_order: 2, ...base() },
+  { id: '00000000-0000-0000-0000-000000000003', business_id: null, name_bn: 'পরিবহন', name_en: 'Transport', is_system: true, sort_order: 3, ...base() },
+  { id: '00000000-0000-0000-0000-000000000004', business_id: null, name_bn: 'বেতন', name_en: 'Salary', is_system: true, sort_order: 4, ...base() },
+  { id: '00000000-0000-0000-0000-000000000005', business_id: null, name_bn: 'মেরামত', name_en: 'Repairs', is_system: true, sort_order: 5, ...base() },
+  { id: '00000000-0000-0000-0000-000000000006', business_id: null, name_bn: 'অন্যান্য', name_en: 'Other', is_system: true, sort_order: 6, ...base() },
+];
 
 export class MockRepository implements IDataRepository {
   private profile: Profile | null = null;
@@ -361,6 +371,37 @@ export class MockRepository implements IDataRepository {
     return tx;
   }
 
+  async deleteTransaction(id: string) {
+    const tx = this.transactions.find((t) => t.id === id && !t.deleted_at);
+    if (!tx) return;
+
+    if (tx.party_id) {
+      const party = await this.getParty(tx.party_id);
+      if (party) {
+        let delta = 0;
+        if (tx.type === 'sale' && tx.is_credit) delta = tx.amount;
+        if (tx.type === 'purchase' && tx.is_credit) delta = -tx.amount;
+        if (tx.type === 'payment_in') delta = -tx.amount;
+        if (tx.type === 'payment_out') delta = tx.amount;
+        await this.updateParty(party.id, { balance: party.balance - delta });
+      }
+    }
+
+    if (!tx.is_credit && tx.type === 'sale') this.business.cash_in_hand -= tx.amount;
+    if (tx.type === 'payment_in') this.business.cash_in_hand -= tx.amount;
+    if (['purchase', 'payment_out', 'expense'].includes(tx.type)) {
+      this.business.cash_in_hand += tx.amount;
+    }
+
+    tx.deleted_at = nowISO();
+    tx.updated_at = nowISO();
+    this.syncState = 'pending';
+  }
+
+  async getExpenseCategories(_businessId: string) {
+    return seedExpenseCategories;
+  }
+
   async getLoans(businessId: string, status?: Loan['status']) {
     return this.loans.filter(
       (l) => l.business_id === businessId && !l.deleted_at && (!status || l.status === status),
@@ -468,7 +509,7 @@ export class MockRepository implements IDataRepository {
     const transactions = this.transactions.filter(
       (t) => t.business_id === businessId && !t.deleted_at,
     );
-    return buildReport(parties, transactions, businessId, rangeDays ?? 30);
+    return buildReport(parties, transactions, businessId, rangeDays ?? 30, seedExpenseCategories);
   }
 
   async getCreditScoreSummary(businessId: string) {

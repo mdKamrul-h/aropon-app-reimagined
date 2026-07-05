@@ -2,7 +2,7 @@ export type TabShellActive = 'home' | 'accounting' | 'inventory' | 'more';
 
 /** Map pathname segments to bottom-nav highlight */
 export function resolveActiveTab(pathname: string): TabShellActive {
-  if (pathname.includes('/accounting') || pathname.includes('-khata') || pathname.includes('hisab-khata')) {
+  if (pathname.includes('/accounting') || pathname.includes('-khata') || pathname.includes('/ledger')) {
     return 'accounting';
   }
   if (pathname.includes('/inventory') || pathname.includes('stock-khata')) {
@@ -35,9 +35,8 @@ export const TAB_ROUTES: Record<TabShellActive, string> = {
 /** Stack screens that should show bottom nav + FAB */
 export const STACK_WITH_NAV_PATTERNS = [
   '/khata',
-  '/hisab-khata',
+  '/ledger',
   '/baki-khata',
-  '/koroch-khata',
   '/stock-khata',
   '/reports',
   '/loans',

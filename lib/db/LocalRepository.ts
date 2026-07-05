@@ -1,6 +1,7 @@
 import type {
   BusinessType,
   DayClose,
+  ExpenseCategory,
   Installment,
   Language,
   LearningItem,
@@ -387,6 +388,62 @@ export class LocalRepository implements IDataRepository {
     return tx;
   }
 
+  async deleteTransaction(id: string) {
+    const db = await this.db();
+    const row = await db.getFirstAsync<Record<string, unknown>>(
+      'SELECT * FROM transactions WHERE id = ? AND deleted_at IS NULL',
+      [id],
+    );
+    if (!row) return;
+    const tx = this.mapTransaction(row);
+    const ts = nowISO();
+
+    if (tx.party_id) {
+      const party = await this.getParty(tx.party_id);
+      if (party) {
+        let delta = 0;
+        if (tx.type === 'sale' && tx.is_credit) delta = tx.amount;
+        if (tx.type === 'purchase' && tx.is_credit) delta = -tx.amount;
+        if (tx.type === 'payment_in') delta = -tx.amount;
+        if (tx.type === 'payment_out') delta = tx.amount;
+        await this.persistParty({
+          ...party,
+          balance: party.balance - delta,
+          updated_at: ts,
+        });
+      }
+    }
+
+    const biz = await this.getBusiness(tx.business_id);
+    if (biz) {
+      let cash = biz.cash_in_hand;
+      if (!tx.is_credit && tx.type === 'sale') cash -= tx.amount;
+      if (tx.type === 'payment_in') cash -= tx.amount;
+      if (['purchase', 'payment_out', 'expense'].includes(tx.type)) cash += tx.amount;
+      await db.runAsync(
+        `UPDATE businesses SET cash_in_hand=?, updated_at=?, sync_status='pending' WHERE id=?`,
+        [cash, ts, biz.id],
+      );
+    }
+
+    await db.runAsync(
+      `UPDATE transactions SET deleted_at=?, updated_at=?, sync_status='pending' WHERE id=?`,
+      [ts, ts, id],
+    );
+    this.syncState = 'pending';
+  }
+
+  async getExpenseCategories(businessId: string) {
+    const db = await this.db();
+    const rows = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM expense_categories
+       WHERE (business_id IS NULL OR business_id = ?) AND deleted_at IS NULL
+       ORDER BY sort_order ASC`,
+      [businessId],
+    );
+    return rows.map((r) => this.mapExpenseCategory(r));
+  }
+
   async getLoans(businessId: string, status?: Parameters<IDataRepository['getLoans']>[1]) {
     const db = await this.db();
     if (status) {
@@ -523,7 +580,8 @@ export class LocalRepository implements IDataRepository {
   async getReport(businessId: string, rangeDays = 30) {
     const parties = await this.getParties(businessId);
     const transactions = await this.getTransactions(businessId);
-    return buildReport(parties, transactions, businessId, rangeDays);
+    const expenseCategories = await this.getExpenseCategories(businessId);
+    return buildReport(parties, transactions, businessId, rangeDays, expenseCategories);
   }
 
   async getCreditScoreSummary(businessId: string) {
@@ -741,6 +799,20 @@ export class LocalRepository implements IDataRepository {
       difference: row.difference as number,
       is_locked: rowToBool(row.is_locked),
       note: row.note as string | null,
+      created_at: row.created_at as string,
+      updated_at: row.updated_at as string,
+      deleted_at: row.deleted_at as string | null,
+    };
+  }
+
+  private mapExpenseCategory(row: Record<string, unknown>): ExpenseCategory {
+    return {
+      id: row.id as string,
+      business_id: row.business_id as string | null,
+      name_bn: row.name_bn as string,
+      name_en: row.name_en as string,
+      is_system: rowToBool(row.is_system),
+      sort_order: row.sort_order as number,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,

@@ -13,7 +13,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
-import type { Party, PaymentMethod, Product, TransactionType } from '@/types/schema';
+import type { ExpenseCategory, Party, PaymentMethod, Product, TransactionType } from '@/types/schema';
 import { partyTypeSelectHint, partyTypeLabel } from '@/constants/partyLabels';
 import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
 import { PAYMENT_METHODS_UI, CASH_PAYMENT_TOGGLE_LABEL } from '@/constants/paymentMethods';
@@ -23,8 +23,6 @@ const BN_TO_EN: Record<string, string> = {
   '০': '0', '১': '1', '২': '2', '৩': '3', '৪': '4',
   '৫': '5', '৬': '6', '৭': '7', '৮': '8', '৯': '9',
 };
-
-const EXPENSE_CATEGORIES = ['দোকান ভাড়া', 'বিদ্যুৎ', 'পরিবহন', 'অন্যান্য'];
 
 function PaymentMethodIcon({ method, size = 28 }: { method: PaymentMethod; size?: number }) {
   const r = Math.round(size * 0.28);
@@ -138,8 +136,10 @@ export default function TransactionScreen() {
   const [productId, setProductId] = useState<string | undefined>();
   const [qty, setQty] = useState('1');
   const [note, setNote] = useState('');
-  const [expenseCategory, setExpenseCategory] = useState(EXPENSE_CATEGORIES[0]);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [expenseCategoryId, setExpenseCategoryId] = useState<string | undefined>();
+  const [amountEditedByHand, setAmountEditedByHand] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(type === 'sale' || type === 'purchase' || type === 'expense');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -149,6 +149,12 @@ export default function TransactionScreen() {
     if (type === 'sale' || type === 'purchase') {
       repo.getProducts(business.id).then(setProducts);
     }
+    if (type === 'expense') {
+      repo.getExpenseCategories(business.id).then((cats) => {
+        setExpenseCategories(cats);
+        setExpenseCategoryId((prev) => prev ?? cats[0]?.id);
+      });
+    }
   }, [business, repo, partyType, type]);
 
   useEffect(() => {
@@ -156,6 +162,7 @@ export default function TransactionScreen() {
   }, [creditFromParam]);
 
   const onKey = (key: string) => {
+    setAmountEditedByHand(true);
     if (key === 'back') {
       setAmountStr((s) => s.slice(0, -1));
       return;
@@ -177,10 +184,24 @@ export default function TransactionScreen() {
     (type === 'purchase' && isCredit);
 
   const selectedProduct = products.find((p) => p.id === productId);
+  const selectedExpenseCategory = expenseCategories.find((c) => c.id === expenseCategoryId);
+
+  // Amount follows product × qty unless the shopkeeper has typed a value
+  // by hand (e.g. to apply a discount) — once they touch the keypad, their
+  // number wins until a different product/qty is picked.
+  useEffect(() => {
+    if (!selectedProduct || amountEditedByHand) return;
+    const q = Number(qty) || 1;
+    setAmountStr(String(selectedProduct.sell_price * q));
+  }, [selectedProduct, qty, amountEditedByHand]);
+
+  useEffect(() => {
+    setAmountEditedByHand(false);
+  }, [productId]);
 
   const buildNote = () => {
     if (note.trim()) return note.trim();
-    if (type === 'expense') return expenseCategory;
+    if (type === 'expense') return selectedExpenseCategory?.name_bn ?? 'খরচ';
     if (selectedProduct) {
       const q = Number(qty) || 1;
       return q > 1 ? `${selectedProduct.name} × ${q}` : selectedProduct.name;
@@ -220,6 +241,7 @@ export default function TransactionScreen() {
         payment_method: method,
         is_credit: type === 'sale' || type === 'purchase' ? isCredit : false,
         note: buildNote(),
+        expense_category_id: type === 'expense' ? expenseCategoryId ?? null : null,
         line_items: lineItems,
       });
       showSuccess('সংরক্ষিত হয়েছে');
@@ -316,22 +338,24 @@ export default function TransactionScreen() {
           </SurfaceCard>
         )}
 
-        <View style={styles.methods}>
-          {PAYMENT_METHODS_UI.map((m) => (
-            <Pressable
-              key={m.key}
-              style={[
-                styles.methodChip,
-                { borderColor: theme.border },
-                method === m.key && { borderColor: accent },
-              ]}
-              onPress={() => setMethod(m.key)}
-            >
-              <PaymentMethodIcon method={m.key} size={28} />
-              <Text style={[styles.methodText, { color: theme.ink }]}>{m.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        {isCredit && (type === 'sale' || type === 'purchase') ? null : (
+          <View style={styles.methods}>
+            {PAYMENT_METHODS_UI.map((m) => (
+              <Pressable
+                key={m.key}
+                style={[
+                  styles.methodChip,
+                  { borderColor: theme.border },
+                  method === m.key && { borderColor: accent },
+                ]}
+                onPress={() => setMethod(m.key)}
+              >
+                <PaymentMethodIcon method={m.key} size={28} />
+                <Text style={[styles.methodText, { color: theme.ink }]}>{m.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <Pressable style={styles.detailsToggle} onPress={() => setDetailsOpen((o) => !o)}>
           <Text style={[styles.detailsToggleText, { color: accent }]}>
@@ -382,17 +406,17 @@ export default function TransactionScreen() {
               <>
                 <Text style={[styles.fieldLabel, { color: theme.mutedDark }]}>খরচের ধরন</Text>
                 <View style={styles.categoryRow}>
-                  {EXPENSE_CATEGORIES.map((c) => (
+                  {expenseCategories.map((c) => (
                     <Pressable
-                      key={c}
+                      key={c.id}
                       style={[
                         styles.partyChip,
                         { backgroundColor: chipBg },
-                        expenseCategory === c && { backgroundColor: `${accent}20`, borderWidth: 1, borderColor: accent },
+                        expenseCategoryId === c.id && { backgroundColor: `${accent}20`, borderWidth: 1, borderColor: accent },
                       ]}
-                      onPress={() => setExpenseCategory(c)}
+                      onPress={() => setExpenseCategoryId(c.id)}
                     >
-                      <Text style={[styles.partyChipText, { color: theme.ink }]}>{c}</Text>
+                      <Text style={[styles.partyChipText, { color: theme.ink }]}>{c.name_bn}</Text>
                     </Pressable>
                   ))}
                 </View>

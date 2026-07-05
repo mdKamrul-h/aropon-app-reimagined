@@ -24,10 +24,9 @@ const DESTINATIONS: {
   icon: IconName;
   tintKey: string;
 }[] = [
-  { title: 'হিসাব খাতা', subtitle: 'ক্যাশবুক ও লেনদেন', route: '/hisab-khata', icon: 'ledger', tintKey: 'sale' },
-  { title: 'বাকি খাতা', subtitle: 'গ্রাহক ও ডিলারের বাকি', route: '/baki-khata', icon: 'receipt', tintKey: 'party' },
+  { title: 'হিসাব খাতা', subtitle: 'সব লেনদেন, ক্যাশবুক ও খরচ', route: '/ledger', icon: 'ledger', tintKey: 'sale' },
+  { title: 'বাকি খাতা', subtitle: 'গ্রাহক ও সাপ্লায়ারের বাকি', route: '/baki-khata', icon: 'receipt', tintKey: 'party' },
   { title: 'স্টক খাতা', subtitle: 'পণ্য ও স্টক', route: '/stock-khata', icon: 'inventory', tintKey: 'receive' },
-  { title: 'খরচ খাতা', subtitle: 'ব্যবসার খরচ', route: '/koroch-khata', icon: 'wallet', tintKey: 'expense' },
   { title: 'গ্রাহক খাতা', subtitle: 'নাম ধরে বাকি', route: '/khata', icon: 'customers', tintKey: 'party' },
   { title: 'রিপোর্ট', subtitle: 'লাভ-ক্ষতি', route: '/reports', icon: 'profit', tintKey: 'sale' },
 ];
@@ -102,7 +101,7 @@ export default function AccountingHubScreen() {
       >
         <Pressable
           style={[styles.cashbookShortcut, { backgroundColor: t.brand, borderRadius: t.radiusLg }]}
-          onPress={() => router.push('/hisab-khata')}
+          onPress={() => router.push('/ledger')}
         >
           <AroponIcon name="ledger" size={24} color="#fff" />
           <View style={{ flex: 1 }}>

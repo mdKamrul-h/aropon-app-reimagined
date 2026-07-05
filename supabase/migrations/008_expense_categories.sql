@@ -35,11 +35,13 @@ DROP TRIGGER IF EXISTS trg_expense_categories_updated ON expense_categories;
 CREATE TRIGGER trg_expense_categories_updated BEFORE UPDATE ON expense_categories
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-INSERT INTO expense_categories (business_id, name_bn, name_en, is_system, sort_order) VALUES
-  (NULL, 'দোকান ভাড়া', 'Shop rent', true, 1),
-  (NULL, 'বিদ্যুৎ বিল', 'Electricity', true, 2),
-  (NULL, 'পরিবহন', 'Transport', true, 3),
-  (NULL, 'বেতন', 'Salary', true, 4),
-  (NULL, 'মেরামত', 'Repairs', true, 5),
-  (NULL, 'অন্যান্য', 'Other', true, 6)
-ON CONFLICT DO NOTHING;
+-- Fixed IDs (shared with the SQLite seed in lib/db/database.ts) so system
+-- categories reconcile as the same row on sync instead of duplicating.
+INSERT INTO expense_categories (id, business_id, name_bn, name_en, is_system, sort_order) VALUES
+  ('00000000-0000-0000-0000-000000000001', NULL, 'দোকান ভাড়া', 'Shop rent', true, 1),
+  ('00000000-0000-0000-0000-000000000002', NULL, 'বিদ্যুৎ বিল', 'Electricity', true, 2),
+  ('00000000-0000-0000-0000-000000000003', NULL, 'পরিবহন', 'Transport', true, 3),
+  ('00000000-0000-0000-0000-000000000004', NULL, 'বেতন', 'Salary', true, 4),
+  ('00000000-0000-0000-0000-000000000005', NULL, 'মেরামত', 'Repairs', true, 5),
+  ('00000000-0000-0000-0000-000000000006', NULL, 'অন্যান্য', 'Other', true, 6)
+ON CONFLICT (id) DO NOTHING;

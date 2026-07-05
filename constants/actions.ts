@@ -31,3 +31,14 @@ export function transactionAction(key: TransactionAction['key']): TransactionAct
 export function isTabHref(href: Href): boolean {
   return typeof href === 'string' && href.startsWith('/(tabs)/');
 }
+
+/** Bengali label for any raw transaction type, for screens that show a
+ * transaction's note with a type-name fallback (recent-activity lists,
+ * ledger rows) so the fallback is never a raw English enum value. */
+export const TRANSACTION_TYPE_LABELS: Record<string, string> = {
+  sale: 'বিক্রি',
+  purchase: 'ক্রয়',
+  payment_in: 'আদায়',
+  payment_out: 'পরিশোধ',
+  expense: 'খরচ',
+};

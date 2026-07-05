@@ -23,6 +23,7 @@ import { useUiPreferences } from '@/context/UiPreferencesContext';
 import type { DashboardSummary, Transaction } from '@/types/schema';
 import type { CreditScoreSummary } from '@/types/creditScore';
 import { spacing, typography } from '@/constants/theme';
+import { TRANSACTION_TYPE_LABELS } from '@/constants/actions';
 import { formatBusinessLocation } from '@/utils/business';
 import { formatTaka, toBnDigits } from '@/utils/bn-numerals';
 
@@ -177,13 +178,15 @@ export default function HomeScreen() {
                   { borderBottomColor: t.border },
                   index === recent.length - 1 && styles.lastRow,
                 ]}
-                onPress={() => router.push('/hisab-khata')}
+                onPress={() => router.push('/ledger')}
               >
                 <View style={[styles.txIcon, { backgroundColor: ['sale', 'payment_in'].includes(tx.type) ? t.successBg : t.errorBg }]}>
                   <AroponIcon name={tx.type === 'expense' ? 'expense' : 'orders'} size={20} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.txTitle, { color: t.ink }]}>{tx.note ?? tx.type}</Text>
+                  <Text style={[styles.txTitle, { color: t.ink }]}>
+                    {tx.note ?? TRANSACTION_TYPE_LABELS[tx.type] ?? tx.type}
+                  </Text>
                   <Text style={[styles.txSub, { color: t.muted }]}>{tx.transaction_date}</Text>
                 </View>
                 <TakaAmount

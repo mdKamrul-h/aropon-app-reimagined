@@ -4,6 +4,7 @@ import type {
   Category,
   DashboardSummary,
   DayClose,
+  ExpenseCategory,
   Language,
   LearningItem,
   Loan,
@@ -39,6 +40,8 @@ export interface IDataRepository {
   updateProduct(id: string, patch: Partial<Product>): Promise<Product>;
   getTransactions(businessId: string, partyId?: string): Promise<Transaction[]>;
   createTransaction(input: TransactionInput): Promise<Transaction>;
+  deleteTransaction(id: string): Promise<void>;
+  getExpenseCategories(businessId: string): Promise<ExpenseCategory[]>;
   getLoans(businessId: string, status?: Loan['status']): Promise<Loan[]>;
   createLoan(businessId: string, input: LoanInput): Promise<Loan>;
   payInstallment(loanId: string, amount: number): Promise<Loan>;

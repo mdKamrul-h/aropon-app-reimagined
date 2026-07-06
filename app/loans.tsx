@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AroponIcon } from '@/components/icons/AroponIcon';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -92,20 +93,35 @@ export default function LoansScreen() {
             </Pressable>
           ) : null}
 
+          <SurfaceCard style={[styles.heroCard, { backgroundColor: t.pay }]}>
+            <View style={styles.heroTop}>
+              <View style={[styles.heroIconWrap, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <AroponIcon name="expense" size={22} color="#fff" />
+              </View>
+              <Text style={styles.heroLabel}>মোট বকেয়া</Text>
+            </View>
+            <TakaAmount amount={totalDue} color="#fff" size="lg" />
+          </SurfaceCard>
+
           <View style={styles.summaryRow}>
-            <SurfaceCard style={styles.summaryCard}>
+            <SurfaceCard style={styles.summaryCard} padded={false}>
+              <View style={[styles.summaryIconWrap, { backgroundColor: `${t.brand}15` }]}>
+                <AroponIcon name="grocery" size={16} color={t.brand} />
+              </View>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>মোট গৃহীত</Text>
-              <TakaAmount amount={totalBorrowed} size="sm" />
+              <TakaAmount amount={totalBorrowed} size="sm" style={styles.summaryAmount} />
             </SurfaceCard>
-            <SurfaceCard style={styles.summaryCard}>
+            <SurfaceCard style={styles.summaryCard} padded={false}>
+              <View style={[styles.summaryIconWrap, { backgroundColor: t.receiveTint }]}>
+                <AroponIcon name="income" size={16} color={t.receive} />
+              </View>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>পরিশোধিত</Text>
-              <TakaAmount amount={Math.round(totalPaid)} color={t.receive} size="sm" />
+              <TakaAmount amount={Math.round(totalPaid)} color={t.receive} size="sm" style={styles.summaryAmount} />
             </SurfaceCard>
-            <SurfaceCard style={styles.summaryCard}>
-              <Text style={[styles.summaryLabel, { color: t.muted }]}>মোট বকেয়া</Text>
-              <TakaAmount amount={totalDue} color={t.pay} size="sm" />
-            </SurfaceCard>
-            <SurfaceCard style={styles.summaryCard}>
+            <SurfaceCard style={styles.summaryCard} padded={false}>
+              <View style={[styles.summaryIconWrap, { backgroundColor: `${t.brand}15` }]}>
+                <AroponIcon name="profit" size={16} color={t.brand} />
+              </View>
               <Text style={[styles.summaryLabel, { color: t.muted }]}>সময়মতো পরিশোধ</Text>
               <Text style={[styles.rateText, { color: t.brand }]}>
                 {onTimeRate === null ? '—' : `${toBnDigits(onTimeRate)}%`}
@@ -228,14 +244,28 @@ const styles = StyleSheet.create({
   },
   alertText: { ...typography.body, fontFamily: fonts.bengaliSemiBold },
   alertSub: { ...typography.caption },
+  heroCard: { gap: spacing.sm },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  heroIconWrap: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  heroLabel: { ...typography.label, color: 'rgba(255,255,255,0.9)' },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   summaryCard: {
-    width: '48%',
+    width: '31%',
     flexGrow: 1,
-    gap: spacing.xs,
+    gap: 4,
+    padding: spacing.sm,
   },
-  summaryLabel: { ...typography.caption },
-  rateText: { fontFamily: fonts.numeral, fontSize: 22 },
+  summaryIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  summaryLabel: { ...typography.caption, fontSize: 12 },
+  summaryAmount: { fontSize: 15, lineHeight: 20 },
+  rateText: { fontFamily: fonts.numeral, fontSize: 18 },
   segments: { flexDirection: 'row', gap: spacing.sm },
   seg: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.pill },
   segText: { ...typography.caption },

@@ -11,6 +11,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
 import { TakaAmount } from '@/components/ui/TakaAmount';
 import { AroponIcon } from '@/components/icons/AroponIcon';
+import type { IconName } from '@/components/icons/aroponIconData';
 import { paymentMethodLabel } from '@/constants/paymentMethods';
 import { useAuth } from '@/context/AuthContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
@@ -61,23 +62,41 @@ function DonutChart({
   );
 }
 
+/** Extreme ratios (e.g. -757% in a short, expense-heavy range) are
+ * mathematically correct but read as a broken UI in a small KPI card —
+ * cap the *display* only, not the underlying number. */
+function formatMarginDisplay(marginPercent: number): string {
+  const capped = Math.max(-300, Math.min(300, marginPercent));
+  const suffix = Math.abs(marginPercent) > 300 ? '+' : '';
+  return `${toBnDigits(capped)}%${suffix}`;
+}
+
 function KpiCard({
   label,
   amount,
   color,
   suffix,
+  icon,
+  iconTint,
 }: {
   label: string;
   amount?: number;
   color?: string;
   suffix?: string;
+  icon?: IconName;
+  iconTint?: string;
 }) {
   const { resolvedTheme: t } = useUiPreferences();
   return (
     <SurfaceCard style={styles.kpiCard} padded>
+      {icon ? (
+        <View style={[styles.kpiIconWrap, { backgroundColor: iconTint ?? `${t.brand}15` }]}>
+          <AroponIcon name={icon} size={18} color={color ?? t.brand} />
+        </View>
+      ) : null}
       <Text style={[styles.kpiLabel, { color: t.muted }]}>{label}</Text>
       {amount !== undefined ? (
-        <TakaAmount amount={amount} color={color ?? t.ink} size="sm" />
+        <TakaAmount amount={amount} color={color ?? t.ink} size="sm" style={styles.kpiAmount} />
       ) : (
         <Text style={[styles.kpiSuffix, { color: color ?? t.ink }]}>{suffix}</Text>
       )}
@@ -211,23 +230,24 @@ export default function ReportsScreen() {
             </View>
             <TakaAmount amount={report.profit} color="#fff" size="lg" />
             <Text style={styles.plBreak}>
-              মার্জিন {toBnDigits(report.profitMargin)}% · বিক্রি {formatTaka(report.sales)}
+              মার্জিন {formatMarginDisplay(report.profitMargin)} · বিক্রি {formatTaka(report.sales)}
             </Text>
           </View>
           </AnimatedSection>
 
           <AnimatedSection index={1}>
           <View style={styles.kpiGrid}>
-            <KpiCard label="বিক্রি" amount={report.sales} color={t.brand} />
-            <KpiCard label="ক্রয়" amount={report.purchases} />
-            <KpiCard label="খরচ" amount={report.expenses} color={t.pay} />
-            <KpiCard label="আদায়" amount={report.collections} color={t.receive} />
+            <KpiCard label="বিক্রি" amount={report.sales} color={t.brand} icon="orders" />
+            <KpiCard label="ক্রয়" amount={report.purchases} icon="grocery" />
+            <KpiCard label="খরচ" amount={report.expenses} color={t.pay} icon="expense" iconTint={t.payTint} />
+            <KpiCard label="আদায়" amount={report.collections} color={t.receive} icon="wallet" iconTint={t.receiveTint} />
             <KpiCard
               label="লাভ মার্জিন"
-              suffix={`${toBnDigits(report.profitMargin)}%`}
+              suffix={formatMarginDisplay(report.profitMargin)}
+              icon="profit"
               color={t.brand}
             />
-            <KpiCard label="মোট পাবেন" amount={report.totalReceivable} color={t.receive} />
+            <KpiCard label="মোট পাবেন" amount={report.totalReceivable} color={t.receive} icon="income" iconTint={t.receiveTint} />
           </View>
           </AnimatedSection>
 
@@ -420,8 +440,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 4,
   },
+  kpiIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   kpiLabel: { ...typography.caption },
-  kpiSuffix: { fontFamily: fonts.numeral, fontSize: 18 },
+  kpiAmount: { fontSize: 21, lineHeight: 26 },
+  kpiSuffix: { fontFamily: fonts.numeral, fontSize: 21 },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',

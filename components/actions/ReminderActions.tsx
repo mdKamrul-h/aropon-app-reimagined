@@ -1,7 +1,8 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { buildReminderSms, reminderSmsUrl } from '@/lib/smsTemplate';
-import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { fonts, spacing, typography } from '@/constants/theme';
 
 interface ReminderActionsProps {
   phone: string | null | undefined;
@@ -20,6 +21,7 @@ export function ReminderActions({
   template,
   layout = 'row',
 }: ReminderActionsProps) {
+  const { resolvedTheme: t } = useUiPreferences();
   if (!phone || balance <= 0) return null;
 
   const body = buildReminderSms(template, { name: partyName, amount: balance, shop: shopName });
@@ -36,8 +38,8 @@ export function ReminderActions({
 
   if (layout === 'compact') {
     return (
-      <Pressable onPress={() => run('sms')} style={styles.compactBtn}>
-        <Text style={styles.compactText}>মনে করান</Text>
+      <Pressable onPress={() => run('sms')} style={[styles.compactBtn, { borderRadius: 999, backgroundColor: `${t.brand}18` }]}>
+        <Text style={[styles.compactText, { color: t.brand }]}>মনে করান</Text>
       </Pressable>
     );
   }
@@ -55,8 +57,6 @@ const styles = StyleSheet.create({
   compactBtn: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.chip,
   },
-  compactText: { ...typography.caption, color: colors.brand, fontFamily: fonts.bengaliSemiBold },
+  compactText: { ...typography.caption, fontFamily: fonts.bengaliSemiBold },
 });

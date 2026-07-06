@@ -6,7 +6,7 @@ import { AroponLogo } from '@/components/brand/AroponLogo';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
-import { colors, radius, spacing } from '@/constants/theme';
+import { radius, spacing } from '@/constants/theme';
 
 export default function LanguageScreen() {
   const router = useRouter();
@@ -40,51 +40,59 @@ export default function LanguageScreen() {
         <Text style={styles.tagline}>দোকানের হিসাব, সহজে হাতের মুঠোয়</Text>
       </LinearGradient>
 
-      {/* ── Bottom sheet — white ── */}
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
-        <View style={styles.handle} />
+      {/* ── Bottom sheet ── */}
+      <View style={[styles.sheet, { backgroundColor: t.card, paddingBottom: insets.bottom + 24 }]}>
+        <View style={[styles.handle, { backgroundColor: t.border }]} />
 
-        <Text style={styles.sectionLabel}>ভাষা নির্বাচন করুন</Text>
-        <Text style={styles.sectionSub}>Choose your preferred language</Text>
+        <Text style={[styles.sectionLabel, { color: t.ink }]}>ভাষা নির্বাচন করুন</Text>
+        <Text style={[styles.sectionSub, { color: t.muted }]}>Choose your preferred language</Text>
 
         <View style={styles.cards}>
           {/* Bangla */}
           <Pressable
-            style={[styles.langCard, language === 'bn' && styles.langCardActive]}
+            style={[
+              styles.langCard,
+              { borderColor: t.border, backgroundColor: t.card },
+              language === 'bn' && { borderColor: t.brand, backgroundColor: `${t.brand}08` },
+            ]}
             onPress={() => setLanguage('bn')}
           >
             <Text style={styles.langFlag}>🇧🇩</Text>
             <View style={styles.langTextCol}>
-              <Text style={[styles.langTitle, language === 'bn' && styles.langTitleActive]}>
+              <Text style={[styles.langTitle, { color: t.ink }, language === 'bn' && { color: t.brand }]}>
                 বাংলা
               </Text>
-              <Text style={styles.langSub}>Bangla</Text>
+              <Text style={[styles.langSub, { color: t.muted }]}>Bangla</Text>
             </View>
-            <View style={[styles.radioRing, language === 'bn' && styles.radioRingActive]}>
-              {language === 'bn' && <View style={styles.radioDot} />}
+            <View style={[styles.radioRing, { borderColor: t.border }, language === 'bn' && { borderColor: t.brand }]}>
+              {language === 'bn' && <View style={[styles.radioDot, { backgroundColor: t.brand }]} />}
             </View>
           </Pressable>
 
           {/* English */}
           <Pressable
-            style={[styles.langCard, language === 'en' && styles.langCardActive]}
+            style={[
+              styles.langCard,
+              { borderColor: t.border, backgroundColor: t.card },
+              language === 'en' && { borderColor: t.brand, backgroundColor: `${t.brand}08` },
+            ]}
             onPress={() => setLanguage('en')}
           >
             <Text style={styles.langFlag}>🇬🇧</Text>
             <View style={styles.langTextCol}>
-              <Text style={[styles.langTitle, language === 'en' && styles.langTitleActive]}>
+              <Text style={[styles.langTitle, { color: t.ink }, language === 'en' && { color: t.brand }]}>
                 English
               </Text>
-              <Text style={styles.langSub}>ইংরেজি</Text>
+              <Text style={[styles.langSub, { color: t.muted }]}>ইংরেজি</Text>
             </View>
-            <View style={[styles.radioRing, language === 'en' && styles.radioRingActive]}>
-              {language === 'en' && <View style={styles.radioDot} />}
+            <View style={[styles.radioRing, { borderColor: t.border }, language === 'en' && { borderColor: t.brand }]}>
+              {language === 'en' && <View style={[styles.radioDot, { backgroundColor: t.brand }]} />}
             </View>
           </Pressable>
         </View>
 
         {/* CTA */}
-        <Pressable style={styles.cta} onPress={onContinue}>
+        <Pressable style={[styles.cta, { shadowColor: t.brand }]} onPress={onContinue}>
           <LinearGradient
             colors={[t.ctaGradient[0], t.ctaGradient[1]]}
             start={{ x: 0, y: 0 }}
@@ -133,7 +141,7 @@ const styles = StyleSheet.create({
   appName: {
     fontFamily: 'HindSiliguri_700Bold',
     fontSize: 36,
-    color: colors.white,
+    color: '#fff',
     letterSpacing: -0.5,
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 2 },
@@ -150,7 +158,6 @@ const styles = StyleSheet.create({
 
   // ── Bottom sheet ──
   sheet: {
-    backgroundColor: colors.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: spacing.xxl,
@@ -168,20 +175,17 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
     alignSelf: 'center',
     marginBottom: 20,
   },
   sectionLabel: {
     fontFamily: 'HindSiliguri_700Bold',
     fontSize: 20,
-    color: '#1D2C23',
     letterSpacing: -0.3,
   },
   sectionSub: {
     fontFamily: 'Outfit_400Regular',
     fontSize: 13,
-    color: colors.muted,
     marginBottom: 8,
   },
 
@@ -192,43 +196,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     borderWidth: 1.5,
-    borderColor: colors.border,
     borderRadius: radius.xl,
     padding: spacing.lg,
-    backgroundColor: colors.white,
-  },
-  langCardActive: {
-    borderColor: colors.brand,
-    backgroundColor: `${colors.brand}08`,
   },
   langFlag: { fontSize: 32 },
   langTextCol: { flex: 1, gap: 2 },
   langTitle: {
     fontFamily: 'HindSiliguri_600SemiBold',
     fontSize: 18,
-    color: '#22332A',
   },
-  langTitleActive: { color: colors.brand },
   langSub: {
     fontFamily: 'Outfit_400Regular',
     fontSize: 13,
-    color: colors.muted,
   },
   radioRing: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioRingActive: { borderColor: colors.brand },
   radioDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: colors.brand,
   },
 
   // ── CTA button ──
@@ -236,7 +228,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     marginTop: 4,
-    shadowColor: colors.brand,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -252,7 +243,7 @@ const styles = StyleSheet.create({
   ctaText: {
     fontFamily: 'HindSiliguri_700Bold',
     fontSize: 18,
-    color: colors.white,
+    color: '#fff',
   },
   ctaArrow: {
     fontFamily: 'Outfit_700Bold',

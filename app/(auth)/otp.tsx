@@ -151,14 +151,20 @@ export default function OtpScreen() {
       <View style={styles.body}>
         <View style={styles.otpRow}>
           {boxes.map((v, i) => (
-            <View key={i} style={[styles.box, i === digits.length && styles.boxActive]}>
-              <Text style={styles.boxText}>{toBnDigits(v)}</Text>
+            <View
+              key={i}
+              style={[
+                styles.box,
+                i === digits.length && { borderColor: t.brand, shadowColor: t.brand, shadowOpacity: 0.2 },
+              ]}
+            >
+              <Text style={[styles.boxText, { color: t.ink }]}>{toBnDigits(v)}</Text>
             </View>
           ))}
         </View>
 
         <Pressable onPress={resend} disabled={timer > 0}>
-          <Text style={[styles.resend, timer > 0 && styles.resendMuted]}>
+          <Text style={[styles.resend, { color: t.brand }, timer > 0 && styles.resendMuted]}>
             {timer > 0 ? `পুনরায় পাঠান ${formatBnTimer(timer)}` : 'পুনরায় OTP পাঠান'}
           </Text>
         </Pressable>
@@ -211,9 +217,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  boxActive: { borderColor: colors.brand, shadowColor: colors.brand, shadowOpacity: 0.2 },
-  boxText: { ...typography.numeralLg, color: colors.ink },
-  resend: { ...typography.bodySm, color: colors.brand, textAlign: 'center', marginBottom: spacing.md, fontWeight: '700' },
+  boxText: { ...typography.numeralLg },
+  resend: { ...typography.bodySm, textAlign: 'center', marginBottom: spacing.md, fontWeight: '700' },
   resendMuted: { color: colors.mutedDark, fontWeight: '500' },
   error: { ...typography.caption, color: colors.pay, textAlign: 'center', marginBottom: spacing.sm },
   devSkip: { marginBottom: spacing.sm, alignItems: 'center' },

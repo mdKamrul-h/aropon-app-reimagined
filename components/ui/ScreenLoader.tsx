@@ -1,7 +1,8 @@
 import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
 import { FadeInSection } from '@/components/ui/FadeInSection';
 import { SkeletonList } from '@/components/ui/Skeleton';
-import { colors, spacing } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing } from '@/constants/theme';
 
 interface ScreenLoaderProps {
   style?: ViewStyle;
@@ -9,10 +10,12 @@ interface ScreenLoaderProps {
 }
 
 export function ScreenLoader({ style, skeleton }: ScreenLoaderProps) {
+  const { resolvedTheme: t } = useUiPreferences();
+
   if (skeleton) {
     return (
       <FadeInSection>
-        <View style={[styles.wrap, styles.skeletonWrap, style]}>
+        <View style={[styles.wrap, styles.skeletonWrap, { backgroundColor: t.surface }, style]}>
           <SkeletonList count={5} />
         </View>
       </FadeInSection>
@@ -20,8 +23,8 @@ export function ScreenLoader({ style, skeleton }: ScreenLoaderProps) {
   }
 
   return (
-    <View style={[styles.wrap, style]}>
-      <ActivityIndicator size="large" color={colors.brand} />
+    <View style={[styles.wrap, { backgroundColor: t.surface }, style]}>
+      <ActivityIndicator size="large" color={t.brand} />
     </View>
   );
 }
@@ -31,7 +34,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
   },
   skeletonWrap: {
     alignItems: 'stretch',

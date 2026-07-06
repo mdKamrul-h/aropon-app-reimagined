@@ -8,10 +8,12 @@ import { sendOtp } from '@/lib/supabase';
 import { authErrorMessage } from '@/lib/authErrors';
 import { devBypassSignIn, isDevBypassOtpEnabled } from '@/lib/devAuth';
 import { goBackOr } from '@/lib/navigation';
-import { colors, spacing } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing } from '@/constants/theme';
 
 export default function PhoneScreen() {
   const router = useRouter();
+  const { resolvedTheme: t } = useUiPreferences();
   const [phone, setPhone] = useState('01');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +52,7 @@ export default function PhoneScreen() {
         <>
           {devBypass ? (
             <Pressable onPress={devSkip} disabled={loading} style={styles.devSkip}>
-              <Text style={styles.devSkipText}>Dev: OTP ছাড়াই ঢুকুন →</Text>
+              <Text style={[styles.devSkipText, { color: t.muted }]}>Dev: OTP ছাড়াই ঢুকুন →</Text>
             </Pressable>
           ) : null}
           <AuthDivider />
@@ -58,8 +60,8 @@ export default function PhoneScreen() {
         </>
       }
     >
-      <Text style={styles.stepLabel}>মোবাইল নম্বর দিন</Text>
-      <Text style={styles.stepDesc}>আপনার ফোনে একটি OTP কোড পাঠানো হবে</Text>
+      <Text style={[styles.stepLabel, { color: t.ink }]}>মোবাইল নম্বর দিন</Text>
+      <Text style={[styles.stepDesc, { color: t.muted }]}>আপনার ফোনে একটি OTP কোড পাঠানো হবে</Text>
       <Input
         label="ফোন নম্বর"
         value={phone}
@@ -77,19 +79,16 @@ const styles = StyleSheet.create({
   stepLabel: {
     fontFamily: 'HindSiliguri_600SemiBold',
     fontSize: 16,
-    color: colors.ink,
   },
   stepDesc: {
     fontFamily: 'HindSiliguri_400Regular',
     fontSize: 13,
-    color: colors.muted,
     marginBottom: 4,
   },
   devSkip: { alignItems: 'center', paddingVertical: spacing.xs },
   devSkipText: {
     fontFamily: 'Outfit_400Regular',
     fontSize: 12,
-    color: colors.muted,
     textDecorationLine: 'underline',
   },
 });

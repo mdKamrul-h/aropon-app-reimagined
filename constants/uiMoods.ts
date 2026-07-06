@@ -93,17 +93,17 @@ export const UI_MOODS: MoodPalette[] = [
 ];
 
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
-  colorMood: 'dokan',
-  gradientStyle: 'vertical',
-  backgroundIntensity: 'soft',
-  cardStyle: 'white',
-  cornerRoundness: 16,
+  colorMood: 'ocean',
+  gradientStyle: 'mesh',
+  backgroundIntensity: 'tinted',
+  cardStyle: 'tinted',
+  cornerRoundness: 24,
   density: 'cozy',
-  entranceAnimation: 'fade',
+  entranceAnimation: 'pop',
   animationSpeed: 1,
-  playfulness: { blob: false, bounce: false, pulse: false },
+  playfulness: { blob: true, bounce: true, pulse: true },
   tapRipple: true,
-  confettiOnCta: false,
+  confettiOnCta: true,
   colorScheme: 'light',
   themePreference: 'system',
 };

@@ -204,9 +204,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  segActive: { backgroundColor: colors.white },
   segText: { ...typography.label, color: 'rgba(255,255,255,0.9)' },
-  segTextActive: { color: colors.brand },
   addPill: {
     marginLeft: 'auto',
     paddingHorizontal: spacing.md,

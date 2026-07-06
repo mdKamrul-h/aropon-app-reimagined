@@ -27,9 +27,19 @@ export function AppScreenShell({
 }: AppScreenShellProps) {
   const { resolvedTheme: t } = useUiPreferences();
   const showNav = withNav && tabActive && variant !== 'modal' && variant !== 'auth';
+  // Every path below except modal/auth wraps body in MeshBackground, which
+  // already paints t.surface + blobs on its own root — an opaque body
+  // background here would sit on top and hide them completely.
+  const wrapsWithMesh = variant !== 'modal' && variant !== 'auth' && !(showNav && variant === 'tabRoot');
 
   const body = (
-    <View style={[styles.root, { backgroundColor: variant === 'modal' ? t.card : t.surface }, style]}>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: variant === 'modal' ? t.card : wrapsWithMesh ? 'transparent' : t.surface },
+        style,
+      ]}
+    >
       <View style={styles.flex}>{children}</View>
       {footer}
     </View>
@@ -41,10 +51,6 @@ export function AppScreenShell({
 
   if (showNav && tabActive) {
     return <TabShell active={tabActive}>{variant === 'tabRoot' ? body : <MeshBackground>{body}</MeshBackground>}</TabShell>;
-  }
-
-  if (variant === 'tabRoot') {
-    return <MeshBackground>{body}</MeshBackground>;
   }
 
   return <MeshBackground>{body}</MeshBackground>;

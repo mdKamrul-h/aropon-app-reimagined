@@ -1,7 +1,8 @@
 import { Pressable, Text, StyleSheet, View } from 'react-native';
 import { AroponIcon } from '@/components/icons/AroponIcon';
 import type { IconName } from '@/components/icons/aroponIconData';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 interface ChoiceCardProps {
   label: string;
@@ -11,19 +12,30 @@ interface ChoiceCardProps {
 }
 
 export function ChoiceCard({ label, icon, selected, onPress }: ChoiceCardProps) {
+  const { resolvedTheme: t } = useUiPreferences();
+
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        selected && styles.cardActive,
+        {
+          backgroundColor: selected ? `${t.brand}18` : t.card,
+          borderRadius: t.radiusXl,
+          borderColor: selected ? t.brand : t.border,
+        },
         pressed && styles.pressed,
       ]}
     >
-      <View style={[styles.iconWrap, selected && styles.iconWrapActive]}>
+      <View
+        style={[
+          styles.iconWrap,
+          { borderRadius: t.radiusLg, backgroundColor: selected ? `${t.brand}18` : t.surface },
+        ]}
+      >
         <AroponIcon name={icon} size={32} />
       </View>
-      <Text style={[styles.label, selected && styles.labelActive]} numberOfLines={2}>
+      <Text style={[styles.label, { color: selected ? t.brand : t.mutedDark }, selected && { fontFamily: typography.label.fontFamily }]} numberOfLines={2}>
         {label}
       </Text>
     </Pressable>
@@ -35,38 +47,21 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '46%',
     maxWidth: '50%',
-    backgroundColor: colors.card,
-    borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: colors.border,
     padding: spacing.md,
     alignItems: 'center',
     gap: spacing.sm,
     minHeight: 100,
   },
-  cardActive: {
-    borderColor: colors.brand,
-    backgroundColor: colors.chip,
-  },
   pressed: { opacity: 0.88 },
   iconWrap: {
     width: 48,
     height: 48,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconWrapActive: {
-    backgroundColor: `${colors.brand}18`,
   },
   label: {
     ...typography.caption,
     textAlign: 'center',
-    color: colors.mutedDark,
-  },
-  labelActive: {
-    color: colors.brand,
-    fontFamily: typography.label.fontFamily,
   },
 });

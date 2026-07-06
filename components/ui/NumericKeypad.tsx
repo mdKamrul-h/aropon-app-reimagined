@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 const KEYS = ['১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯', '', '০', '⌫'];
 
@@ -13,12 +14,18 @@ interface NumericKeypadProps {
 }
 
 export function NumericKeypad({ onKey }: NumericKeypadProps) {
+  const { resolvedTheme: t } = useUiPreferences();
+
   return (
     <View style={styles.grid}>
       {KEYS.map((key, i) => (
         <Pressable
           key={i}
-          style={[styles.key, !key && styles.keyEmpty]}
+          style={[
+            styles.key,
+            { backgroundColor: t.card, borderRadius: t.radiusLg, borderColor: t.border },
+            !key && styles.keyEmpty,
+          ]}
           onPress={() => {
             if (!key) return;
             if (key === '⌫') onKey('back');
@@ -26,7 +33,7 @@ export function NumericKeypad({ onKey }: NumericKeypadProps) {
           }}
           disabled={!key}
         >
-          <Text style={styles.keyText}>{key}</Text>
+          <Text style={[styles.keyText, { color: t.ink }]}>{key}</Text>
         </Pressable>
       ))}
     </View>
@@ -43,13 +50,10 @@ const styles = StyleSheet.create({
   key: {
     width: '30%',
     aspectRatio: 1.6,
-    backgroundColor: colors.white,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
   },
   keyEmpty: { backgroundColor: 'transparent', borderWidth: 0 },
-  keyText: { ...typography.heroAmount, fontSize: 28, color: colors.ink },
+  keyText: { ...typography.heroAmount, fontSize: 28 },
 });

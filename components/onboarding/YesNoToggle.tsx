@@ -1,5 +1,6 @@
 import { Pressable, Text, StyleSheet, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 interface YesNoToggleProps {
   value: boolean;
@@ -14,19 +15,29 @@ export function YesNoToggle({
   yesLabel = 'হ্যাঁ',
   noLabel = 'না',
 }: YesNoToggleProps) {
+  const { resolvedTheme: t } = useUiPreferences();
+
+  const pillStyle = (active: boolean) => [
+    styles.pill,
+    {
+      borderRadius: t.radiusXl,
+      borderColor: active ? t.brand : t.border,
+      backgroundColor: active ? `${t.brand}18` : t.card,
+    },
+  ];
+  const textStyle = (active: boolean) => [
+    styles.text,
+    { color: active ? t.brand : t.mutedDark },
+    active && { fontFamily: typography.sectionTitle.fontFamily },
+  ];
+
   return (
     <View style={styles.row}>
-      <Pressable
-        onPress={() => onChange(false)}
-        style={[styles.pill, !value && styles.pillActive]}
-      >
-        <Text style={[styles.text, !value && styles.textActive]}>{noLabel}</Text>
+      <Pressable onPress={() => onChange(false)} style={pillStyle(!value)}>
+        <Text style={textStyle(!value)}>{noLabel}</Text>
       </Pressable>
-      <Pressable
-        onPress={() => onChange(true)}
-        style={[styles.pill, value && styles.pillActive]}
-      >
-        <Text style={[styles.text, value && styles.textActive]}>{yesLabel}</Text>
+      <Pressable onPress={() => onChange(true)} style={pillStyle(value)}>
+        <Text style={textStyle(value)}>{yesLabel}</Text>
       </Pressable>
     </View>
   );
@@ -40,24 +51,12 @@ const styles = StyleSheet.create({
   pill: {
     flex: 1,
     minHeight: spacing.touchMin + 4,
-    borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  pillActive: {
-    borderColor: colors.brand,
-    backgroundColor: colors.chip,
-  },
   text: {
     ...typography.body,
-    color: colors.mutedDark,
-  },
-  textActive: {
-    color: colors.brand,
-    fontFamily: typography.sectionTitle.fontFamily,
   },
 });

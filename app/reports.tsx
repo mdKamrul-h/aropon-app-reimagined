@@ -19,7 +19,7 @@ import { PAYMENT_COLORS } from '@/lib/analytics/reportBuilder';
 import { buildReportCsv, buildReportHtml } from '@/lib/export/reportExport';
 import type { ReportSummary } from '@/types/schema';
 import { formatTaka, toBnDigits } from '@/utils/bn-numerals';
-import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
+import { fonts, radius, spacing, typography } from '@/constants/theme';
 
 const RANGES = ['এই সপ্তাহ', 'এই মাস', 'এই বছর'];
 const RANGE_DAYS = [7, 30, 365];
@@ -169,7 +169,7 @@ export default function ReportsScreen() {
               <Text
                 style={[
                   styles.rangeText,
-                  range === i && { color: '#083344' },
+                  range === i && { color: t.ink },
                 ]}
               >
                 {r}
@@ -200,7 +200,7 @@ export default function ReportsScreen() {
 
           <AnimatedSection index={0}>
           <SectionHeader icon="dashboard" title="সারাংশ" />
-          <View style={[styles.plCard, { backgroundColor: colors.receive }]}>
+          <View style={[styles.plCard, { backgroundColor: t.brand }]}>
             <View style={styles.plHeader}>
               <Text style={styles.plLabel}>লাভ</Text>
               {profitDelta !== 0 ? (
@@ -209,7 +209,7 @@ export default function ReportsScreen() {
                 </Text>
               ) : null}
             </View>
-            <TakaAmount amount={report.profit} color={colors.white} size="lg" />
+            <TakaAmount amount={report.profit} color="#fff" size="lg" />
             <Text style={styles.plBreak}>
               মার্জিন {toBnDigits(report.profitMargin)}% · বিক্রি {formatTaka(report.sales)}
             </Text>
@@ -218,7 +218,7 @@ export default function ReportsScreen() {
 
           <AnimatedSection index={1}>
           <View style={styles.kpiGrid}>
-            <KpiCard label="বিক্রি" amount={report.sales} color={colors.brand} />
+            <KpiCard label="বিক্রি" amount={report.sales} color={t.brand} />
             <KpiCard label="ক্রয়" amount={report.purchases} />
             <KpiCard label="খরচ" amount={report.expenses} color={t.pay} />
             <KpiCard label="আদায়" amount={report.collections} color={t.receive} />
@@ -408,9 +408,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  rangeChipActive: { backgroundColor: colors.white },
   rangeText: { ...typography.label, color: 'rgba(255,255,255,0.9)' },
-  rangeTextActive: { color: colors.brand },
   plCard: { borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.sm },
   plHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   plLabel: { ...typography.body, color: 'rgba(255,255,255,0.9)' },
@@ -432,9 +430,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   barWrap: { alignItems: 'center', gap: 2, flex: 1 },
-  barAmount: { ...typography.caption, fontSize: 9, color: colors.muted, height: 12 },
+  barAmount: { ...typography.caption, fontSize: 9, height: 12 },
   bar: { width: 14, borderRadius: 4, minHeight: 8 },
-  barLabel: { ...typography.caption, color: colors.muted },
+  barLabel: { ...typography.caption },
   pieRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -450,16 +448,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.sm,
   },
-  topRowFirst: { borderColor: colors.receive, backgroundColor: '#E8F5E9' },
   rankBadge: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rankBadgeGold: { backgroundColor: colors.amber },
-  rank: { fontFamily: fonts.numeral, fontSize: 14, color: colors.ink },
+  rank: { fontFamily: fonts.numeral, fontSize: 14 },
   topName: { ...typography.body, flex: 1, fontFamily: fonts.bengaliSemiBold },
 });

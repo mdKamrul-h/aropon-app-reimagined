@@ -5,7 +5,8 @@ import {
   ActivityIndicator,
   type ViewStyle,
 } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 interface ButtonProps {
   label: string;
@@ -24,6 +25,7 @@ export function Button({
   loading,
   style,
 }: ButtonProps) {
+  const { resolvedTheme: t } = useUiPreferences();
   const isPrimary = variant === 'primary';
   const isDanger = variant === 'danger';
 
@@ -33,24 +35,19 @@ export function Button({
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,
-        isPrimary && styles.primary,
-        variant === 'outline' && styles.outline,
-        isDanger && styles.danger,
+        { borderRadius: t.radiusLg },
+        isPrimary && { backgroundColor: t.brand, shadowColor: t.brand, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 2 },
+        variant === 'outline' && { backgroundColor: t.card, borderWidth: 1.5, borderColor: t.border },
+        isDanger && { backgroundColor: t.pay },
         (disabled || loading) && styles.disabled,
         pressed && styles.pressed,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary || isDanger ? colors.white : colors.brand} />
+        <ActivityIndicator color={isPrimary || isDanger ? '#fff' : t.brand} />
       ) : (
-        <Text
-          style={[
-            styles.label,
-            (isPrimary || isDanger) && styles.labelLight,
-            variant === 'outline' && styles.labelOutline,
-          ]}
-        >
+        <Text style={[styles.label, { color: isPrimary || isDanger ? '#fff' : t.brand }]}>
           {label}
         </Text>
       )}
@@ -61,29 +58,12 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: spacing.touchMin,
-    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
   },
-  primary: {
-    backgroundColor: colors.brand,
-    shadowColor: colors.brand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  outline: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  danger: { backgroundColor: colors.pay },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
-  label: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, color: colors.ink },
-  labelLight: { color: colors.white },
-  labelOutline: { color: colors.brand },
+  label: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily },
 });

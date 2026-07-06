@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/Input';
 import { authErrorMessage } from '@/lib/authErrors';
 import { goBackOr } from '@/lib/navigation';
 import { signInWithUsername } from '@/lib/supabase';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing } from '@/constants/theme';
 
 const DEMO_USERNAME = process.env.EXPO_PUBLIC_DEMO_USERNAME ?? '';
 const DEMO_PASSWORD = process.env.EXPO_PUBLIC_DEMO_PASSWORD ?? 'demo1234';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { resolvedTheme: t } = useUiPreferences();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,20 +67,23 @@ export default function LoginScreen() {
       <Button label="লগইন →" onPress={submit} loading={loading} style={styles.submit} />
       {__DEV__ && DEMO_USERNAME ? (
         <Pressable
-          style={styles.demoChip}
+          style={[
+            styles.demoChip,
+            { borderRadius: t.radiusMd, backgroundColor: `${t.brand}12`, borderColor: `${t.brand}30` },
+          ]}
           onPress={() => {
             setUsername(DEMO_USERNAME);
             setPassword(DEMO_PASSWORD);
             setError('');
           }}
         >
-          <Text style={styles.demoChipText}>
+          <Text style={[styles.demoChipText, { color: t.brand }]}>
             ডেমো: {DEMO_USERNAME} / {DEMO_PASSWORD}
           </Text>
         </Pressable>
       ) : null}
       <Pressable onPress={() => router.push('/(auth)/forgot-password')}>
-        <Text style={styles.forgot}>পাসওয়ার্ড ভুলে গেছেন?</Text>
+        <Text style={[styles.forgot, { color: t.brand }]}>পাসওয়ার্ড ভুলে গেছেন?</Text>
       </Pressable>
     </AuthScreenShell>
   );
@@ -90,16 +95,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: `${colors.brand}12`,
     borderWidth: 1,
-    borderColor: `${colors.brand}30`,
   },
   demoChipText: {
     fontFamily: 'HindSiliguri_500Medium',
     fontSize: 14,
-    color: colors.brand,
     textAlign: 'center',
   },
-  forgot: { fontFamily: 'HindSiliguri_500Medium', fontSize: 14, color: colors.brand, textAlign: 'center', marginTop: spacing.sm },
+  forgot: { fontFamily: 'HindSiliguri_500Medium', fontSize: 14, textAlign: 'center', marginTop: spacing.sm },
 });

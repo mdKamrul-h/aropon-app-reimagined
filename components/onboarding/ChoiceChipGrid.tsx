@@ -1,5 +1,6 @@
 import { Pressable, Text, StyleSheet, View } from 'react-native';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 interface ChoiceChipGridProps {
   options: { id: string; label: string }[];
@@ -14,9 +15,11 @@ export function ChoiceChipGrid({
   onSelect,
   groupLabel,
 }: ChoiceChipGridProps) {
+  const { resolvedTheme: t } = useUiPreferences();
+
   return (
     <View style={styles.wrap}>
-      {groupLabel ? <Text style={styles.groupLabel}>{groupLabel}</Text> : null}
+      {groupLabel ? <Text style={[styles.groupLabel, { color: t.muted }]}>{groupLabel}</Text> : null}
       <View style={styles.grid}>
         {options.map((opt) => {
           const active = selectedId === opt.id;
@@ -24,9 +27,16 @@ export function ChoiceChipGrid({
             <Pressable
               key={opt.id}
               onPress={() => onSelect(opt.id)}
-              style={[styles.chip, active && styles.chipActive]}
+              style={[
+                styles.chip,
+                {
+                  borderRadius: t.radiusXl,
+                  borderColor: active ? t.brand : t.border,
+                  backgroundColor: active ? `${t.brand}18` : t.card,
+                },
+              ]}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+              <Text style={[styles.chipText, { color: active ? t.brand : t.mutedDark }, active && { fontFamily: typography.label.fontFamily }]} numberOfLines={1}>
                 {opt.label}
               </Text>
             </Pressable>
@@ -41,7 +51,6 @@ const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
   groupLabel: {
     ...typography.caption,
-    color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -53,21 +62,9 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  chipActive: {
-    borderColor: colors.brand,
-    backgroundColor: colors.chip,
   },
   chipText: {
     ...typography.bodySm,
-    color: colors.mutedDark,
-  },
-  chipTextActive: {
-    color: colors.brand,
-    fontFamily: typography.label.fontFamily,
   },
 });

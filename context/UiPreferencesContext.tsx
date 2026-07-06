@@ -16,24 +16,17 @@ import { resolveUiTheme, type ResolvedUiTheme } from '@/lib/ui/resolveUiTheme';
 import type { UiPreferenceKey, UiPreferences } from '@/types/uiPreferences';
 
 const PREFS_KEY = 'aropon_ui_prefs';
-const PREFS_VERSION = 2;
+const PREFS_VERSION = 3;
 
 function migratePrefs(parsed: Partial<UiPreferences>): UiPreferences {
   const merged = mergePrefs(DEFAULT_UI_PREFERENCES, parsed);
   const version = (parsed as Partial<UiPreferences> & { _v?: number })._v ?? 1;
   if (version >= PREFS_VERSION) return merged;
 
-  // Upgrade to Dokan theme for existing installs
-  return mergePrefs(merged, {
-    colorMood: 'dokan',
-    gradientStyle: 'vertical',
-    backgroundIntensity: 'soft',
-    cardStyle: 'white',
-    cornerRoundness: 16,
-    entranceAnimation: 'fade',
-    playfulness: { blob: false, bounce: false, pulse: false },
-    confettiOnCta: false,
-  });
+  // Force the current default look onto every existing install — this
+  // preference system has no user-facing picker yet, so "upgrade" just
+  // means "match the shipped design," not "respect a customization."
+  return mergePrefs(merged, DEFAULT_UI_PREFERENCES);
 }
 
 interface UiPreferencesContextValue {

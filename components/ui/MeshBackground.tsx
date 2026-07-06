@@ -20,14 +20,14 @@ export function MeshBackground({ children }: MeshBackgroundProps) {
             style={[
               styles.blob,
               styles.blob1,
-              { backgroundColor: t.meshColors[0], opacity: t.meshOpacity * (t.isDark ? 0.4 : 0.5) },
+              { backgroundColor: t.meshColors[0], opacity: t.meshOpacity * (t.isDark ? 1.1 : 1.6) },
             ]}
           />
           <View
             style={[
               styles.blob,
               styles.blob2,
-              { backgroundColor: t.meshColors[1], opacity: t.meshOpacity * 0.3 * (t.isDark ? 0.4 : 0.5) },
+              { backgroundColor: t.meshColors[1], opacity: t.meshOpacity * (t.isDark ? 0.8 : 1.2) },
             ]}
           />
         </>
@@ -51,6 +51,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 999,
   },
-  blob1: { width: 240, height: 240, top: -60, right: -50 },
-  blob2: { width: 180, height: 180, top: 160, left: -70 },
+  blob1: { width: 260, height: 260, top: 220, right: -60 },
+  blob2: { width: 200, height: 200, top: 520, left: -80 },
 });

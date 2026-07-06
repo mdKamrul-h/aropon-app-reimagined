@@ -20,11 +20,13 @@ import {
 } from '@/lib/authCredentials';
 import { completeRegistrationCredentials, isUsernameAvailable, supabase } from '@/lib/supabase';
 import { useRepository } from '@/context/RepositoryContext';
-import { colors, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 export default function SetCredentialsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { resolvedTheme: t } = useUiPreferences();
   const { session, language, setProfile } = useAuth();
   const { repo } = useRepository();
   const [username, setUsername] = useState('');
@@ -102,13 +104,13 @@ export default function SetCredentialsScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+      style={[styles.container, { backgroundColor: t.card, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.step}>ধাপ ২/৩</Text>
-        <Text style={styles.title}>অ্যাকাউন্ট তৈরি</Text>
-        <Text style={styles.sub}>লগইনের জন্য ইউজারনেম ও পাসওয়ার্ড সেট করুন</Text>
+        <Text style={[styles.step, { color: t.brand }]}>ধাপ ২/৩</Text>
+        <Text style={[styles.title, { color: t.ink }]}>অ্যাকাউন্ট তৈরি</Text>
+        <Text style={[styles.sub, { color: t.mutedDark }]}>লগইনের জন্য ইউজারনেম ও পাসওয়ার্ড সেট করুন</Text>
 
         <Input
           label="ইউজারনেম"
@@ -141,10 +143,10 @@ export default function SetCredentialsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: spacing.xxl, gap: spacing.md },
-  step: { ...typography.caption, color: colors.brand, fontWeight: '700' },
-  title: { ...typography.screenTitle, color: colors.ink },
-  sub: { ...typography.body, color: colors.mutedDark, marginBottom: spacing.md },
+  step: { ...typography.caption, fontWeight: '700' },
+  title: { ...typography.screenTitle },
+  sub: { ...typography.body, marginBottom: spacing.md },
   submit: { marginTop: spacing.sm },
 });

@@ -1,6 +1,18 @@
 import { getMood } from '@/constants/uiMoods';
 import type { UiPreferences } from '@/types/uiPreferences';
 
+/** Mixes hexB into hexA by `ratio` (0 = all hexA, 1 = all hexB). */
+function mixHex(hexA: string, hexB: string, ratio: number): string {
+  const a = parseInt(hexA.replace('#', ''), 16);
+  const b = parseInt(hexB.replace('#', ''), 16);
+  const mix = (shiftAmt: number) => {
+    const ca = (a >> shiftAmt) & 255;
+    const cb = (b >> shiftAmt) & 255;
+    return Math.round(ca + (cb - ca) * ratio);
+  };
+  return `#${[mix(16), mix(8), mix(0)].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export interface ResolvedUiTheme {
   isDark: boolean;
   mood: ReturnType<typeof getMood>;
@@ -74,8 +86,14 @@ export function resolveUiTheme(prefs: UiPreferences): ResolvedUiTheme {
   const surface = isDark ? '#121810' : '#FAF8F4';
   const surfaceAlt = isDark ? '#1A2218' : '#F5F2EC';
   const surfaceMuted = isDark ? '#222C20' : '#EDE9E1';
-  const card = isDark ? '#1E281C' : '#FFFFFF';
-  const cardTint = isDark ? '#253020' : '#FAFAF7';
+  const cardBase = isDark ? '#1E281C' : '#FFFFFF';
+  const cardTintBase = isDark ? '#253020' : '#FAFAF7';
+  // 'tinted'/'glass' bring the mood color into the card surface instead of
+  // flat white — the single biggest lever for "friendly" vs. "corporate".
+  const cardMoodMix =
+    prefs.cardStyle === 'white' ? 0 : prefs.cardStyle === 'glass' ? 0.1 : 0.06;
+  const card = cardMoodMix > 0 ? mixHex(cardBase, mood.primary2, cardMoodMix) : cardBase;
+  const cardTint = cardMoodMix > 0 ? mixHex(cardTintBase, mood.primary2, cardMoodMix) : cardTintBase;
   const ink = isDark ? '#F5F2EC' : '#1A1A14';
   const inkSecondary = isDark ? '#D4CFC4' : '#3D3D35';
   const muted = isDark ? '#9E9890' : '#6B6560';

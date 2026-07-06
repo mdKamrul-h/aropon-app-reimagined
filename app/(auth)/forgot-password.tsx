@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { usernameToAuthEmail } from '@/lib/authCredentials';
 import { supabase } from '@/lib/supabase';
-import { colors, spacing, typography } from '@/constants/theme';
+import { useUiPreferences } from '@/context/UiPreferencesContext';
+import { spacing, typography } from '@/constants/theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { resolvedTheme: t } = useUiPreferences();
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -34,14 +36,14 @@ export default function ForgotPasswordScreen() {
 
   return (
     <ScrollView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: t.card }]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>পাসওয়ার্ড ভুলে গেছেন?</Text>
-      <Text style={styles.sub}>ইউজারনেম দিন। রিসেট লিংক ইমেইলে পাঠানো হবে (অভ্যন্তরীণ অ্যাকাউন্ট)।</Text>
+      <Text style={[styles.title, { color: t.ink }]}>পাসওয়ার্ড ভুলে গেছেন?</Text>
+      <Text style={[styles.sub, { color: t.mutedDark }]}>ইউজারনেম দিন। রিসেট লিংক ইমেইলে পাঠানো হবে (অভ্যন্তরীণ অ্যাকাউন্ট)।</Text>
       {sent ? (
-        <Text style={styles.success}>অনুরোধ পাঠানো হয়েছে। ইমেইল চেক করুন বা সাপোর্টে যোগাযোগ করুন।</Text>
+        <Text style={[styles.success, { color: t.receive }]}>অনুরোধ পাঠানো হয়েছে। ইমেইল চেক করুন বা সাপোর্টে যোগাযোগ করুন।</Text>
       ) : (
         <>
           <Input label="ইউজারনেম" value={username} onChangeText={setUsername} autoCapitalize="none" error={error} />
@@ -54,9 +56,9 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.white },
+  root: { flex: 1 },
   content: { paddingHorizontal: spacing.xxl, gap: spacing.md },
-  title: { ...typography.screenTitle, color: colors.ink },
-  sub: { ...typography.body, color: colors.mutedDark, marginBottom: spacing.md },
-  success: { ...typography.body, color: colors.receive },
+  title: { ...typography.screenTitle },
+  sub: { ...typography.body, marginBottom: spacing.md },
+  success: { ...typography.body },
 });

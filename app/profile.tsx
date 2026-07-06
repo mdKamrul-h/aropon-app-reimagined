@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { SurfaceCard } from '@/components/ui/SurfaceCard';
 import { TabScreenShell } from '@/components/ui/TabScreenShell';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
@@ -107,48 +109,54 @@ export default function ProfileScreen() {
             <Text style={[styles.logoPlaceholder, { color: t.brand }]}>{shopName.charAt(0) || '?'}</Text>
           )}
         </Pressable>
-        <Input label="ইউজারনেম" value={profile?.username ?? ''} editable={false} />
-        <Input label="মোবাইল" value={profile?.phone ?? ''} editable={false} />
-        <Input label="দোকানের নাম" value={shopName} onChangeText={setShopName} />
-        <Input label="মালিকের নাম" value={ownerName} onChangeText={setOwnerName} />
-        <Input label="জেলা" value={district} onChangeText={setDistrict} />
-        <Text style={[styles.chipLabel, { color: t.mutedDark }]}>ব্যবসার ধরন</Text>
-        <View style={styles.chips}>
-          {BIZ_TYPES.map((b) => (
-            <Pressable
-              key={b.key}
-              style={[
-                styles.chip,
-                cardSurfaceStyle(t),
-                { backgroundColor: t.card },
-                bizType === b.key && { backgroundColor: `${t.brand}18` },
-              ]}
-              onPress={() => setBizType(b.key)}
-            >
-              <Text
+
+        <SurfaceCard style={styles.section}>
+          <SectionHeader icon="profile" title="দোকানের পরিচয়" />
+          <Input label="ইউজারনেম" value={profile?.username ?? ''} editable={false} />
+          <Input label="মোবাইল" value={profile?.phone ?? ''} editable={false} />
+          <Input label="দোকানের নাম" value={shopName} onChangeText={setShopName} />
+          <Input label="মালিকের নাম" value={ownerName} onChangeText={setOwnerName} />
+          <Input label="জেলা" value={district} onChangeText={setDistrict} />
+          <Text style={[styles.chipLabel, { color: t.mutedDark }]}>ব্যবসার ধরন</Text>
+          <View style={styles.chips}>
+            {BIZ_TYPES.map((b) => (
+              <Pressable
+                key={b.key}
                 style={[
-                  styles.chipText,
-                  { color: t.mutedDark },
-                  bizType === b.key && { color: t.brand, fontFamily: fonts.bengaliSemiBold },
+                  styles.chip,
+                  cardSurfaceStyle(t),
+                  { backgroundColor: t.card },
+                  bizType === b.key && { backgroundColor: `${t.brand}18` },
                 ]}
+                onPress={() => setBizType(b.key)}
               >
-                {b.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={[styles.sectionLabel, { color: t.mutedDark }]}>
-          ঋণ প্রতিবেদনের জন্য ব্যবসায়িক তথ্য (ঐচ্ছিক)
-        </Text>
-        <Input label="ঠিকানা" value={address} onChangeText={setAddress} multiline />
-        <Input
-          label="প্রতিষ্ঠার তারিখ (YYYY-MM-DD)"
-          value={establishedOn}
-          onChangeText={setEstablishedOn}
-          placeholder="২০১৮-০৫-০১"
-        />
-        <Input label="ট্রেড লাইসেন্স নম্বর" value={tradeLicenseNo} onChangeText={setTradeLicenseNo} />
-        <Input label="মালিকের এনআইডি নম্বর" value={nidNo} onChangeText={setNidNo} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: t.mutedDark },
+                    bizType === b.key && { color: t.brand, fontFamily: fonts.bengaliSemiBold },
+                  ]}
+                >
+                  {b.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </SurfaceCard>
+
+        <SurfaceCard style={styles.section}>
+          <SectionHeader icon="ledger" title="ঋণ প্রতিবেদনের জন্য তথ্য (ঐচ্ছিক)" />
+          <Input label="ঠিকানা" value={address} onChangeText={setAddress} multiline />
+          <Input
+            label="প্রতিষ্ঠার তারিখ (YYYY-MM-DD)"
+            value={establishedOn}
+            onChangeText={setEstablishedOn}
+            placeholder="২০১৮-০৫-০১"
+          />
+          <Input label="ট্রেড লাইসেন্স নম্বর" value={tradeLicenseNo} onChangeText={setTradeLicenseNo} />
+          <Input label="মালিকের এনআইডি নম্বর" value={nidNo} onChangeText={setNidNo} />
+        </SurfaceCard>
+
         <Button label="সংরক্ষণ করুন" onPress={submit} loading={loading} />
       </ScrollView>
     </TabScreenShell>
@@ -171,8 +179,8 @@ const styles = StyleSheet.create({
   },
   logoImage: { width: 80, height: 80 },
   logoPlaceholder: { fontFamily: fonts.bengaliBold, fontSize: 28 },
+  section: { gap: spacing.md },
   chipLabel: { ...typography.label },
-  sectionLabel: { ...typography.label, marginTop: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,

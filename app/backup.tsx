@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, Share, StyleSheet, Text } from 'react-native';
+import { Alert, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AroponIcon } from '@/components/icons/AroponIcon';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { SurfaceCard } from '@/components/ui/SurfaceCard';
 import { TabScreenShell } from '@/components/ui/TabScreenShell';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
@@ -11,6 +14,12 @@ import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import { getMeta } from '@/lib/db/database';
 import { spacing, typography } from '@/constants/theme';
+
+const SYNC_LABEL: Record<string, string> = {
+  online: 'সিঙ্ক ঠিক আছে',
+  pending: 'সিঙ্ক বাকি আছে',
+  offline: 'ইন্টারনেট নেই',
+};
 
 export default function BackupScreen() {
   const insets = useSafeAreaInsets();
@@ -91,33 +100,49 @@ export default function BackupScreen() {
     <TabScreenShell withNav tabActive="more">
       <ScreenHeader title="ব্যাকআপ ও রিস্টোর" backFallback={'/settings' as never} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-        <Text style={[styles.meta, { color: t.inkSecondary }]}>স্ট্যাটাস: {syncState}</Text>
-        {lastSync ? <Text style={[styles.meta, { color: t.inkSecondary }]}>শেষ সিঙ্ক: {lastSync}</Text> : null}
-        <Button label="এখনই সিঙ্ক করুন" onPress={syncNow} loading={syncing} />
-        <Button label="ডেটা এক্সপোর্ট করুন" variant="outline" onPress={exportData} loading={exporting} />
-        <Text style={[styles.hint, { color: t.muted }]}>
-          এক্সপোর্টে আপনার সব দোকান, পার্টি, পণ্য, লেনদেন, ঋণ ও ক্রেডিট স্কোরের তথ্য থাকে। ফাইলটি নিরাপদ জায়গায় রাখুন।
-        </Text>
+        <SurfaceCard style={styles.section}>
+          <SectionHeader icon="backup" title="সিঙ্ক ও এক্সপোর্ট" />
+          <View style={styles.statusRow}>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    syncState === 'online' ? t.syncOnline : syncState === 'pending' ? t.syncPending : t.syncOffline,
+                },
+              ]}
+            />
+            <Text style={[styles.meta, { color: t.inkSecondary }]}>{SYNC_LABEL[syncState] ?? syncState}</Text>
+          </View>
+          {lastSync ? <Text style={[styles.meta, { color: t.muted }]}>শেষ সিঙ্ক: {lastSync}</Text> : null}
+          <Button label="এখনই সিঙ্ক করুন" onPress={syncNow} loading={syncing} />
+          <Button label="ডেটা এক্সপোর্ট করুন" variant="outline" onPress={exportData} loading={exporting} />
+          <Text style={[styles.hint, { color: t.muted }]}>
+            এক্সপোর্টে আপনার সব দোকান, পার্টি, পণ্য, লেনদেন, ঋণ ও ক্রেডিট স্কোরের তথ্য থাকে। ফাইলটি নিরাপদ জায়গায় রাখুন।
+          </Text>
+        </SurfaceCard>
 
-        <Text style={[styles.sectionLabel, { color: t.mutedDark }]}>রিস্টোর করুন</Text>
-        <Text style={[styles.hint, { color: t.muted }]}>
-          আগে এক্সপোর্ট করা ব্যাকআপ টেক্সট এখানে পেস্ট করুন।
-        </Text>
-        <Input
-          value={restoreText}
-          onChangeText={setRestoreText}
-          multiline
-          numberOfLines={6}
-          style={styles.restoreInput}
-          placeholder="{ ... }"
-        />
-        <Button
-          label="রিস্টোর করুন"
-          variant="outline"
-          onPress={restoreData}
-          loading={restoring}
-          disabled={!restoreText.trim()}
-        />
+        <SurfaceCard style={styles.section}>
+          <SectionHeader icon="orders" title="রিস্টোর করুন" />
+          <Text style={[styles.hint, { color: t.muted }]}>
+            আগে এক্সপোর্ট করা ব্যাকআপ টেক্সট এখানে পেস্ট করুন।
+          </Text>
+          <Input
+            value={restoreText}
+            onChangeText={setRestoreText}
+            multiline
+            numberOfLines={6}
+            style={styles.restoreInput}
+            placeholder="এখানে পেস্ট করুন..."
+          />
+          <Button
+            label="রিস্টোর করুন"
+            variant="outline"
+            onPress={restoreData}
+            loading={restoring}
+            disabled={!restoreText.trim()}
+          />
+        </SurfaceCard>
       </ScrollView>
     </TabScreenShell>
   );
@@ -125,8 +150,10 @@ export default function BackupScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md },
+  section: { gap: spacing.md },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  statusDot: { width: 8, height: 8, borderRadius: 999 },
   meta: { ...typography.bodySm },
   hint: { ...typography.caption },
-  sectionLabel: { ...typography.label, marginTop: spacing.md },
   restoreInput: { minHeight: 120, textAlignVertical: 'top' },
 });

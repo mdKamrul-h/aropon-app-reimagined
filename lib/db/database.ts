@@ -238,6 +238,7 @@ async function migrate(database: SQLite.SQLiteDatabase) {
   await addColumnIfMissing(database, 'businesses', 'established_on', 'TEXT');
   await addColumnIfMissing(database, 'businesses', 'trade_license_no', 'TEXT');
   await addColumnIfMissing(database, 'businesses', 'nid_no', 'TEXT');
+  await addColumnIfMissing(database, 'businesses', 'address', 'TEXT');
 
   await addColumnIfMissing(database, 'transactions', 'expense_category_id', 'TEXT');
 

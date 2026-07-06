@@ -71,6 +71,14 @@ export interface IDataRepository {
     snapshot: Omit<CreditScoreSnapshot, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>,
   ): Promise<CreditScoreSnapshot>;
   getLearningItems(): Promise<LearningItem[]>;
+  /** Full data dump for a business — every table added through Wave 5
+   * (loans, installments, loan_payments, line_items, expense_categories,
+   * credit_scores) — so an exported backup can't silently drop the loan
+   * and credit history that is this app's whole point. */
+  exportBackup(businessId: string): Promise<Record<string, unknown>>;
+  /** Merges an exported backup back in (upsert by id per table). Does not
+   * delete rows absent from the backup. */
+  restoreBackup(businessId: string, payload: Record<string, unknown>): Promise<{ tables: number; rows: number }>;
   getSyncState(): SyncState;
   syncNow?(): Promise<void>;
   setLanguage?(lang: Language): Promise<void>;

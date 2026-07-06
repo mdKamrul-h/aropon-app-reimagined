@@ -76,7 +76,7 @@ export interface Business extends BaseEntity {
   owner_name: string;
   business_type: BusinessType;
   district: string;
-  address?: string;
+  address?: string | null;
   logo_url: string | null;
   reminder_sms_template: string;
   cash_in_hand: number;
@@ -244,7 +244,7 @@ export interface BusinessInput {
   owner_name: string;
   business_type: BusinessType;
   district: string;
-  address?: string;
+  address?: string | null;
   logo_url?: string | null;
   reminder_sms_template?: string;
 }

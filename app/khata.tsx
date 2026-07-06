@@ -15,7 +15,7 @@ import { TakaAmount } from '@/components/ui/TakaAmount';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
-import { PremiumReminderActions } from '@/components/premium/PremiumReminderActions';
+import { ReminderActions } from '@/components/actions/ReminderActions';
 import { PARTY_TYPE_LABELS, partyTypeEmptyTitle } from '@/constants/partyLabels';
 import type { Party, PartyType, Transaction } from '@/types/schema';
 import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
@@ -175,7 +175,7 @@ export default function KhataScreen() {
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <TakaAmount amount={Math.abs(item.balance)} color={color} size="sm" />
                   {item.balance > 0 && item.phone ? (
-                    <PremiumReminderActions
+                    <ReminderActions
                       phone={item.phone}
                       partyName={item.name}
                       balance={item.balance}

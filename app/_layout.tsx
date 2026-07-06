@@ -20,7 +20,6 @@ import {
 } from '@expo-google-fonts/outfit';
 import { AuthProvider } from '@/context/AuthContext';
 import { RepositoryProvider } from '@/context/RepositoryContext';
-import { PremiumProvider } from '@/context/PremiumContext';
 import { UiPreferencesProvider } from '@/context/UiPreferencesContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
@@ -59,17 +58,15 @@ export default function RootLayout() {
       <BottomSheetModalProvider>
       <AuthProvider>
         <RepositoryProvider>
-          <PremiumProvider>
-            <UiPreferencesProvider>
-            <ThemeProvider>
-            <ToastProvider>
-            <AppStatusBar />
-            <AppStack />
-            {showSplash ? <AppSplash onFinish={() => setShowSplash(false)} /> : null}
-            </ToastProvider>
-            </ThemeProvider>
-            </UiPreferencesProvider>
-          </PremiumProvider>
+          <UiPreferencesProvider>
+          <ThemeProvider>
+          <ToastProvider>
+          <AppStatusBar />
+          <AppStack />
+          {showSplash ? <AppSplash onFinish={() => setShowSplash(false)} /> : null}
+          </ToastProvider>
+          </ThemeProvider>
+          </UiPreferencesProvider>
         </RepositoryProvider>
       </AuthProvider>
       </BottomSheetModalProvider>

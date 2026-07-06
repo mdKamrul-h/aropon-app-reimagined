@@ -672,6 +672,102 @@ export class MockRepository implements IDataRepository {
     return seedLearning;
   }
 
+  async exportBackup(businessId: string) {
+    const loanIds = new Set(this.loans.filter((l) => l.business_id === businessId).map((l) => l.id));
+    const txIds = new Set(this.transactions.filter((t) => t.business_id === businessId).map((t) => t.id));
+    return {
+      businesses: this.business.id === businessId ? [this.business] : [],
+      parties: this.parties.filter((p) => p.business_id === businessId && !p.deleted_at),
+      products: this.products.filter((p) => p.business_id === businessId && !p.deleted_at),
+      transactions: this.transactions.filter((t) => t.business_id === businessId && !t.deleted_at),
+      line_items: this.lineItems.filter((li) => txIds.has(li.transaction_id) && !li.deleted_at),
+      loans: this.loans.filter((l) => l.business_id === businessId && !l.deleted_at),
+      installments: this.installments.filter((i) => loanIds.has(i.loan_id) && !i.deleted_at),
+      loan_payments: this.loanPayments.filter((p) => loanIds.has(p.loan_id) && !p.deleted_at),
+      expense_categories: seedExpenseCategories.filter(
+        (c) => (c.business_id === null || c.business_id === businessId) && !c.deleted_at,
+      ),
+      credit_scores: this.creditScores.filter((c) => c.business_id === businessId && !c.deleted_at),
+      day_closes: this.dayCloses.filter((d) => d.business_id === businessId && !d.deleted_at),
+      exported_at: nowISO(),
+    };
+  }
+
+  async restoreBackup(businessId: string, payload: Record<string, unknown>) {
+    // The backup may come from a different install where this business had
+    // a different id (a fresh device mints a new business_id during
+    // onboarding before restore ever runs). Remap business_id references to
+    // the *current* business so restored rows attach to it instead of
+    // silently orphaning under the old id.
+    const businessRows = Array.isArray(payload.businesses) ? (payload.businesses as Business[]) : [];
+    const sourceBusinessId = businessRows[0]?.id;
+
+    const remap = <T extends { id: string; business_id?: string | null }>(incoming: unknown): T[] => {
+      if (!Array.isArray(incoming)) return [];
+      return (incoming as T[])
+        .filter((row) => row && typeof row === 'object' && 'id' in row)
+        .map((row) =>
+          'business_id' in row && (row.business_id === sourceBusinessId || row.business_id == null)
+            ? { ...row, business_id: businessId }
+            : row,
+        );
+    };
+
+    const upsert = <T extends { id: string }>(current: T[], incoming: T[]): T[] => {
+      if (incoming.length === 0) return current;
+      const byId = new Map(current.map((row) => [row.id, row]));
+      for (const row of incoming) byId.set(row.id, row);
+      return Array.from(byId.values());
+    };
+
+    let tableCount = 0;
+    let rowCount = 0;
+    const apply = <T extends { id: string; business_id?: string | null }>(
+      current: T[],
+      incoming: unknown,
+    ): T[] => {
+      const remapped = remap<T>(incoming);
+      if (remapped.length > 0) {
+        tableCount += 1;
+        rowCount += remapped.length;
+      }
+      return upsert(current, remapped);
+    };
+
+    if (businessRows.length > 0) {
+      const match = businessRows.find((b) => b.id === sourceBusinessId) ?? businessRows[0];
+      this.business = { ...this.business, ...match, id: businessId, owner_id: this.business.owner_id };
+      tableCount += 1;
+      rowCount += 1;
+    }
+    this.parties = apply(this.parties, payload.parties);
+    this.products = apply(this.products, payload.products);
+    this.transactions = apply(this.transactions, payload.transactions);
+    this.loans = apply(this.loans, payload.loans);
+    this.creditScores = apply(this.creditScores, payload.credit_scores);
+    this.dayCloses = apply(this.dayCloses, payload.day_closes);
+    // line_items/installments/loan_payments key off transaction_id/loan_id
+    // (unchanged ids), so no business_id remap needed for them.
+    this.lineItems = upsert(this.lineItems, Array.isArray(payload.line_items) ? (payload.line_items as LineItem[]) : []);
+    if (Array.isArray(payload.line_items) && payload.line_items.length > 0) {
+      tableCount += 1;
+      rowCount += payload.line_items.length;
+    }
+    this.installments = upsert(this.installments, Array.isArray(payload.installments) ? (payload.installments as Installment[]) : []);
+    if (Array.isArray(payload.installments) && payload.installments.length > 0) {
+      tableCount += 1;
+      rowCount += payload.installments.length;
+    }
+    this.loanPayments = upsert(this.loanPayments, Array.isArray(payload.loan_payments) ? (payload.loan_payments as LoanPayment[]) : []);
+    if (Array.isArray(payload.loan_payments) && payload.loan_payments.length > 0) {
+      tableCount += 1;
+      rowCount += payload.loan_payments.length;
+    }
+
+    this.syncState = 'pending';
+    return { tables: tableCount, rows: rowCount };
+  }
+
   getSyncState(): SyncState {
     return this.syncState;
   }

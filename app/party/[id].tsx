@@ -28,7 +28,7 @@ import { useRepository } from '@/context/RepositoryContext';
 
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 
-import { PremiumReminderActions } from '@/components/premium/PremiumReminderActions';
+import { ReminderActions } from '@/components/actions/ReminderActions';
 
 import type { Party, Transaction } from '@/types/schema';
 
@@ -182,7 +182,7 @@ export default function PartyLedgerScreen() {
 
         <TakaAmount amount={Math.abs(party.balance)} color={balanceColor} size="lg" />
 
-        <PremiumReminderActions
+        <ReminderActions
 
           phone={party.phone}
 

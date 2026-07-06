@@ -118,8 +118,8 @@ export class LocalRepository implements IDataRepository {
     const biz = await this.fallback.createBusiness(ownerId, input);
     const db = await this.db();
     await db.runAsync(
-      `INSERT OR REPLACE INTO businesses (id, owner_id, name, owner_name, business_type, district, logo_url, reminder_sms_template, cash_in_hand, established_on, trade_license_no, nid_no, created_at, updated_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT OR REPLACE INTO businesses (id, owner_id, name, owner_name, business_type, district, logo_url, reminder_sms_template, cash_in_hand, established_on, trade_license_no, nid_no, address, created_at, updated_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       [
         biz.id,
         biz.owner_id,
@@ -133,6 +133,7 @@ export class LocalRepository implements IDataRepository {
         biz.established_on ?? null,
         biz.trade_license_no ?? null,
         biz.nid_no ?? null,
+        biz.address ?? null,
         biz.created_at,
         biz.updated_at,
       ],
@@ -147,7 +148,7 @@ export class LocalRepository implements IDataRepository {
     const biz = { ...existing, ...patch, updated_at: nowISO() };
     const db = await this.db();
     await db.runAsync(
-      `UPDATE businesses SET name=?, owner_name=?, district=?, logo_url=?, reminder_sms_template=?, cash_in_hand=?, established_on=?, trade_license_no=?, nid_no=?, updated_at=?, sync_status='pending' WHERE id=?`,
+      `UPDATE businesses SET name=?, owner_name=?, district=?, logo_url=?, reminder_sms_template=?, cash_in_hand=?, established_on=?, trade_license_no=?, nid_no=?, address=?, updated_at=?, sync_status='pending' WHERE id=?`,
       [
         biz.name,
         biz.owner_name,
@@ -158,6 +159,7 @@ export class LocalRepository implements IDataRepository {
         biz.established_on ?? null,
         biz.trade_license_no ?? null,
         biz.nid_no ?? null,
+        biz.address ?? null,
         nowISO(),
         id,
       ],
@@ -747,6 +749,117 @@ export class LocalRepository implements IDataRepository {
     return rows.map((r) => this.mapLearningItem(r));
   }
 
+  async exportBackup(businessId: string) {
+    const db = await this.db();
+    const payload: Record<string, unknown> = {};
+
+    const direct = ['businesses', 'parties', 'products', 'transactions', 'loans', 'day_closes', 'credit_scores'] as const;
+    for (const table of direct) {
+      const idCol = table === 'businesses' ? 'id' : 'business_id';
+      payload[table] = await db.getAllAsync<Record<string, unknown>>(
+        `SELECT * FROM ${table} WHERE ${idCol} = ? AND deleted_at IS NULL`,
+        [businessId],
+      );
+    }
+
+    payload.expense_categories = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT * FROM expense_categories WHERE (business_id IS NULL OR business_id = ?) AND deleted_at IS NULL`,
+      [businessId],
+    );
+    payload.line_items = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT li.* FROM line_items li JOIN transactions t ON t.id = li.transaction_id
+       WHERE t.business_id = ? AND li.deleted_at IS NULL`,
+      [businessId],
+    );
+    payload.installments = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT i.* FROM installments i JOIN loans l ON l.id = i.loan_id
+       WHERE l.business_id = ? AND i.deleted_at IS NULL`,
+      [businessId],
+    );
+    payload.loan_payments = await db.getAllAsync<Record<string, unknown>>(
+      `SELECT lp.* FROM loan_payments lp JOIN loans l ON l.id = lp.loan_id
+       WHERE l.business_id = ? AND lp.deleted_at IS NULL`,
+      [businessId],
+    );
+
+    payload.exported_at = nowISO();
+    return payload;
+  }
+
+  async restoreBackup(businessId: string, payload: Record<string, unknown>) {
+    const db = await this.db();
+    const current = await this.getBusiness(businessId);
+    if (!current) throw new Error('Business not found');
+
+    // The backup may have been taken on a different install where this
+    // business had a different id (a fresh device mints a new business_id
+    // during onboarding before restore ever runs). Remap every business_id
+    // reference to the *current* business so restored rows attach to it
+    // instead of silently orphaning under the old id.
+    const businessRows = Array.isArray(payload.businesses) ? (payload.businesses as Record<string, unknown>[]) : [];
+    const sourceBusinessId = businessRows[0]?.id as string | undefined;
+
+    const tables = [
+      'parties', 'products', 'transactions', 'loans', 'expense_categories',
+      'credit_scores', 'day_closes',
+    ] as const;
+    let tableCount = 0;
+    let rowCount = 0;
+
+    for (const table of tables) {
+      const rows = payload[table];
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+      tableCount += 1;
+      for (const rawRow of rows as Record<string, unknown>[]) {
+        if (!rawRow || typeof rawRow !== 'object' || !('id' in rawRow)) continue;
+        const row = { ...rawRow };
+        if ('business_id' in row && (row.business_id === sourceBusinessId || row.business_id == null)) {
+          row.business_id = businessId;
+        }
+        const cols = Object.keys(row).filter((c) => c !== 'sync_status');
+        const placeholders = cols.map(() => '?').join(', ');
+        const updates = cols.map((c) => `${c} = excluded.${c}`).join(', ');
+        await db.runAsync(
+          `INSERT INTO ${table} (${cols.join(', ')}, sync_status) VALUES (${placeholders}, 'pending')
+           ON CONFLICT(id) DO UPDATE SET ${updates}, sync_status = 'pending'`,
+          cols.map((c) => (row[c] === undefined ? null : row[c])) as (string | number | null)[],
+        );
+        rowCount += 1;
+      }
+    }
+
+    // line_items/installments/loan_payments key off transaction_id/loan_id
+    // (unchanged ids), so no remap needed — restoring the parent rows above
+    // is enough for the foreign keys to still line up.
+    for (const table of ['line_items', 'installments', 'loan_payments'] as const) {
+      const rows = payload[table];
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+      tableCount += 1;
+      for (const row of rows as Record<string, unknown>[]) {
+        if (!row || typeof row !== 'object' || !('id' in row)) continue;
+        const cols = Object.keys(row).filter((c) => c !== 'sync_status');
+        const placeholders = cols.map(() => '?').join(', ');
+        const updates = cols.map((c) => `${c} = excluded.${c}`).join(', ');
+        await db.runAsync(
+          `INSERT INTO ${table} (${cols.join(', ')}, sync_status) VALUES (${placeholders}, 'pending')
+           ON CONFLICT(id) DO UPDATE SET ${updates}, sync_status = 'pending'`,
+          cols.map((c) => (row[c] === undefined ? null : row[c])) as (string | number | null)[],
+        );
+        rowCount += 1;
+      }
+    }
+
+    if (businessRows.length > 0) {
+      const merged = { ...current, ...businessRows[0], id: businessId, owner_id: current.owner_id };
+      await this.updateBusiness(businessId, merged);
+      tableCount += 1;
+      rowCount += 1;
+    }
+
+    this.syncState = 'pending';
+    return { tables: tableCount, rows: rowCount };
+  }
+
   getSyncState(): SyncState {
     return this.syncState;
   }
@@ -892,6 +1005,7 @@ export class LocalRepository implements IDataRepository {
       established_on: (row.established_on as string | null) ?? null,
       trade_license_no: (row.trade_license_no as string | null) ?? null,
       nid_no: (row.nid_no as string | null) ?? null,
+      address: (row.address as string | null) ?? null,
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       deleted_at: row.deleted_at as string | null,

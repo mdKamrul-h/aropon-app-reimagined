@@ -120,6 +120,47 @@ async function main() {
   const snap2 = await repo.getLatestCreditScoreSnapshot(business.id);
   assert(snap1?.id === snap2?.id, 'credit score snapshot throttled (same id on same-day re-fetch)');
 
+  // --- Backup export / restore ---
+  const backup = await repo.exportBackup(business.id);
+  assert(Array.isArray(backup.loans) && (backup.loans as unknown[]).length > 0, 'backup includes loans');
+  assert(Array.isArray(backup.loan_payments) && (backup.loan_payments as unknown[]).length > 0, 'backup includes loan_payments');
+  assert(Array.isArray(backup.installments) && (backup.installments as unknown[]).length > 0, 'backup includes installments');
+  assert(Array.isArray(backup.transactions), 'backup includes transactions array');
+  assert(Array.isArray(backup.credit_scores), 'backup includes credit_scores array');
+
+  const partiesBeforeRestore = await repo.getParties(business.id, 'customer');
+  const restoreResult = await repo.restoreBackup(business.id, backup);
+  assert(restoreResult.tables > 0 && restoreResult.rows > 0, `restore reports non-zero tables/rows (got ${restoreResult.tables}/${restoreResult.rows})`);
+  const partiesAfterRestore = await repo.getParties(business.id, 'customer');
+  assert(partiesAfterRestore.length === partiesBeforeRestore.length, 'restore from own export does not duplicate rows (upsert-by-id)');
+  const loansAfterRestore = await repo.getLoans(business.id);
+  assert(loansAfterRestore.some((l) => l.id === loan.id), 'restored loan still present with original id');
+
+  // --- Cross-device restore: backup's business_id differs from the
+  // current (freshly onboarded) business_id, which is the real recovery
+  // scenario — must remap, not orphan under the old id. ---
+  const freshRepo = new MockRepository();
+  await freshRepo.init();
+  const freshBusiness = await freshRepo.createBusiness('demo-owner-2', {
+    name: 'নতুন ডিভাইস দোকান',
+    owner_name: 'টেস্ট মালিক',
+    business_type: 'grocery',
+    district: 'ঢাকা',
+    logo_url: null,
+    reminder_sms_template: 'test',
+  } as any);
+  assert(freshBusiness.id !== business.id, 'fresh onboarding mints a different business id (sanity check)');
+
+  const crossDeviceResult = await freshRepo.restoreBackup(freshBusiness.id, backup);
+  assert(crossDeviceResult.rows > 0, 'cross-device restore reports rows written');
+  const freshParties = await freshRepo.getParties(freshBusiness.id, 'customer');
+  assert(freshParties.length > 0, `restored parties are visible under the NEW business id (got ${freshParties.length})`);
+  const freshLoans = await freshRepo.getLoans(freshBusiness.id);
+  assert(
+    freshLoans.some((l) => l.id === loan.id && l.business_id === freshBusiness.id),
+    'restored loan is re-parented to the new business id, not orphaned under the old one',
+  );
+
   console.log('\nALL SMOKE CHECKS PASSED');
 }
 

@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, Switch, ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/Button';
-import { ListRow } from '@/components/ui/ListRow';
-import { PaywallModal } from '@/components/premium/PaywallModal';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { SurfaceCard } from '@/components/ui/SurfaceCard';
 import { TabScreenShell } from '@/components/ui/TabScreenShell';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
-import { usePremium } from '@/context/PremiumContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import {
   getNotificationPref,
@@ -29,13 +25,10 @@ const NOTIF_TOGGLES: { key: NotificationPrefKey; label: string }[] = [
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { business, language, setLanguage, profile } = useAuth();
   const { repo } = useRepository();
   const { showSuccess } = useToast();
-  const { isPremium } = usePremium();
   const { preferences, setPreference, resolvedTheme: t } = useUiPreferences();
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [template, setTemplate] = useState(business?.reminder_sms_template ?? '');
   const [saving, setSaving] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<Record<NotificationPrefKey, boolean>>({
@@ -61,10 +54,6 @@ export default function SettingsScreen() {
 
   const saveTemplate = async () => {
     if (!business) return;
-    if (!isPremium) {
-      setPaywallOpen(true);
-      return;
-    }
     setSaving(true);
     await repo.updateBusiness(business.id, { reminder_sms_template: template });
     showSuccess('টেমপ্লেট সংরক্ষিত');
@@ -140,21 +129,15 @@ export default function SettingsScreen() {
           </View>
         </SurfaceCard>
 
-        <Text style={[styles.section, { color: t.muted }]}>SMS টেমপ্লেট {!isPremium ? '🔒 প্রিমিয়াম' : ''}</Text>
+        <Text style={[styles.section, { color: t.muted }]}>SMS টেমপ্লেট</Text>
         <TextInput
-          style={[styles.textarea, { borderColor: t.border, color: t.ink, backgroundColor: t.card }, !isPremium && styles.textareaLocked]}
+          style={[styles.textarea, { borderColor: t.border, color: t.ink, backgroundColor: t.card }]}
           multiline
           value={template}
           onChangeText={setTemplate}
           placeholder="{{name}}, {{amount}}, {{shop}}"
-          editable={isPremium}
         />
-        <Button
-          label={isPremium ? 'সংরক্ষণ করুন' : 'প্রিমিয়ামে আনলক করুন'}
-          onPress={saveTemplate}
-          loading={saving}
-        />
-        <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} feature="reminder" />
+        <Button label="সংরক্ষণ করুন" onPress={saveTemplate} loading={saving} />
 
         <Text style={[styles.section, { color: t.muted }]}>ভাষা</Text>
         <View style={styles.row}>
@@ -186,23 +169,6 @@ export default function SettingsScreen() {
             ))}
           </>
         ) : null}
-
-        <Text style={[styles.section, { color: t.muted }]}>অন্যান্য</Text>
-        <SurfaceCard style={styles.linksCard} padded={false}>
-          {[
-            { label: 'প্রোফাইল', route: '/profile' },
-            { label: 'ব্যাকআপ', route: '/backup' },
-            { label: 'সাহায্য', route: '/help' },
-          ].map((item) => (
-            <ListRow
-              key={item.route}
-              label={item.label}
-              onPress={() => router.push(item.route as never)}
-              showChevron
-              haptic
-            />
-          ))}
-        </SurfaceCard>
       </ScrollView>
     </TabScreenShell>
   );
@@ -219,7 +185,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...typography.body,
   },
-  textareaLocked: { opacity: 0.7 },
   row: { flexDirection: 'row', gap: spacing.sm },
   chip: {
     paddingHorizontal: spacing.lg,
@@ -235,5 +200,4 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   toggleLabel: { ...typography.body, flex: 1 },
-  linksCard: { padding: 0, overflow: 'hidden' },
 });

@@ -11,7 +11,6 @@ import {
 } from '@/components/onboarding';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
-import { supabase } from '@/lib/supabase';
 import {
   BUSINESS_TYPE_OPTIONS,
   DISTRICT_QUICK_PICKS,
@@ -100,18 +99,6 @@ export default function BusinessSetupScreen() {
         district: district ?? DISTRICT_SKIP,
         logo_url: null,
         reminder_sms_template: DEFAULT_SMS,
-      });
-
-      await supabase.from('businesses').upsert({
-        id: biz.id,
-        owner_id: session.user.id,
-        name: biz.name,
-        owner_name: biz.owner_name,
-        business_type: biz.business_type,
-        district: biz.district,
-        logo_url: null,
-        reminder_sms_template: biz.reminder_sms_template,
-        cash_in_hand: 0,
       });
 
       if (hasLoan) {

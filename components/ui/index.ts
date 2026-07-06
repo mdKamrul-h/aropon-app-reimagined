@@ -24,6 +24,5 @@ export { Skeleton, SkeletonList } from './Skeleton';
 export { SurfaceCard } from './SurfaceCard';
 export { TabScreenShell } from './TabScreenShell';
 export { TakaAmount } from './TakaAmount';
-export { TierBadge } from './TierBadge';
 export { Toast, type ToastPayload, type ToastVariant } from './Toast';
 export { UiSlider } from './UiSlider';

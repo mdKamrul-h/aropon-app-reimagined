@@ -11,7 +11,6 @@ import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { Button } from '@/components/ui/Button';
 import { AnimatedSection } from '@/components/ui/AnimatedSection';
 import { ListRow } from '@/components/ui/ListRow';
-import { TierBadge } from '@/components/ui/TierBadge';
 import { filterLearningArticles } from '@/constants/learningArticles';
 import { useAuth } from '@/context/AuthContext';
 import { useRepository } from '@/context/RepositoryContext';
@@ -53,7 +52,6 @@ export default function MoreScreen() {
       <AppHeader variant="tabRoot" shopName={business.name} shopMeta={business.owner_name} />
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 100 }}>
-        <TierBadge />
         <AnimatedSection index={0}>
           <AppCard style={styles.section}>
             <SectionBlock title="ক্রেডিট স্কোর" meta="আপনার ব্যবসার স্কোর" />

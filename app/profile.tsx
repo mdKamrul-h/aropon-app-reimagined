@@ -29,6 +29,10 @@ export default function ProfileScreen() {
   const [shopName, setShopName] = useState(business?.name ?? '');
   const [ownerName, setOwnerName] = useState(business?.owner_name ?? '');
   const [district, setDistrict] = useState(business?.district ?? '');
+  const [address, setAddress] = useState(business?.address ?? '');
+  const [establishedOn, setEstablishedOn] = useState(business?.established_on ?? '');
+  const [tradeLicenseNo, setTradeLicenseNo] = useState(business?.trade_license_no ?? '');
+  const [nidNo, setNidNo] = useState(business?.nid_no ?? '');
   const [bizType, setBizType] = useState<BusinessType>(business?.business_type ?? 'grocery');
   const [logoUri, setLogoUri] = useState<string | null>(business?.logo_url ?? null);
   const [loading, setLoading] = useState(false);
@@ -62,6 +66,10 @@ export default function ProfileScreen() {
         name: shopName,
         owner_name: ownerName,
         district,
+        address: address || null,
+        established_on: establishedOn || null,
+        trade_license_no: tradeLicenseNo || null,
+        nid_no: nidNo || null,
         business_type: bizType,
         logo_url: logoUrl,
       });
@@ -129,6 +137,18 @@ export default function ProfileScreen() {
             </Pressable>
           ))}
         </View>
+        <Text style={[styles.sectionLabel, { color: t.mutedDark }]}>
+          ঋণ প্রতিবেদনের জন্য ব্যবসায়িক তথ্য (ঐচ্ছিক)
+        </Text>
+        <Input label="ঠিকানা" value={address} onChangeText={setAddress} multiline />
+        <Input
+          label="প্রতিষ্ঠার তারিখ (YYYY-MM-DD)"
+          value={establishedOn}
+          onChangeText={setEstablishedOn}
+          placeholder="২০১৮-০৫-০১"
+        />
+        <Input label="ট্রেড লাইসেন্স নম্বর" value={tradeLicenseNo} onChangeText={setTradeLicenseNo} />
+        <Input label="মালিকের এনআইডি নম্বর" value={nidNo} onChangeText={setNidNo} />
         <Button label="সংরক্ষণ করুন" onPress={submit} loading={loading} />
       </ScrollView>
     </TabScreenShell>
@@ -152,6 +172,7 @@ const styles = StyleSheet.create({
   logoImage: { width: 80, height: 80 },
   logoPlaceholder: { fontFamily: fonts.bengaliBold, fontSize: 28 },
   chipLabel: { ...typography.label },
+  sectionLabel: { ...typography.label, marginTop: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,

@@ -14,10 +14,8 @@ import { AroponIcon } from '@/components/icons/AroponIcon';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { InsightBanner } from '@/components/ui/InsightBanner';
 import { ScreenLoader } from '@/components/ui/ScreenLoader';
-import { TierBadge } from '@/components/ui/TierBadge';
 import { TakaAmount } from '@/components/ui/TakaAmount';
 import { useAuth } from '@/context/AuthContext';
-import { usePremium } from '@/context/PremiumContext';
 import { useRepository } from '@/context/RepositoryContext';
 import { useUiPreferences } from '@/context/UiPreferencesContext';
 import type { DashboardSummary, Transaction } from '@/types/schema';
@@ -31,7 +29,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const { business, session } = useAuth();
   const { repo, syncState, refreshSync } = useRepository();
-  const { isPremium } = usePremium();
   const { resolvedTheme: t } = useUiPreferences();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [creditScore, setCreditScore] = useState<CreditScoreSummary | null>(null);
@@ -147,8 +144,6 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.brand} />}
         showsVerticalScrollIndicator={false}
       >
-        {isPremium ? <TierBadge /> : null}
-
         {summary ? (
           <DashboardSummarySection
             summary={summary}
